@@ -20,6 +20,9 @@ Example `.env`:
 FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe
 FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
 WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
+WEB_UI_HOST=127.0.0.1
+WEB_UI_PORT=3000
+WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
 ```
 
 Override tool paths with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`.
@@ -40,6 +43,22 @@ Run tests:
 ```bash
 node --test
 ```
+
+Start the web UI:
+
+```bash
+npm run web-ui
+```
+
+The web UI lets the user:
+
+1. Upload audio plus `script.json`
+2. Optional: upload `script.whisper.srt` with `script.json` to skip audio transcription
+3. Start subtitle generation and track progress
+4. Download `script.whisper.srt` and `script.srt`
+5. Upload multiple source videos for the same job
+6. Start segment generation and final concat
+7. Download a segment zip and the final video
 
 Run the full flow in one command:
 

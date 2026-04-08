@@ -27,3 +27,6 @@ dev-dist
 test-results
 assets
 .env
+
+.tmp-web-ui
+.tmp-whisper

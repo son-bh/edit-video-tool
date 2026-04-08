@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <h1>Media Workflow UI</h1>
+        <p class="muted">Create subtitles from audio and script JSON, then generate timed video segments and a final video.</p>
+      </section>
+
+      <section class="panel">
+        <h2>1. Create script from audio and JSON</h2>
+        <form id="subtitle-form" class="stack">
+          <label>
+            <span>Audio or video file</span>
+            <input type="file" name="audio" accept=".mp3,.wav,.m4a,.aac,.mp4,.mov,.mkv" />
+          </label>
+          <label>
+            <span>script.json</span>
+            <input type="file" name="scriptJson" accept=".json,application/json" required />
+          </label>
+          <label>
+            <span>script.whisper.srt (optional, skips audio transcription)</span>
+            <input type="file" name="transcriptSrt" accept=".srt" />
+          </label>
+          <button type="submit">Create script</button>
+        </form>
+        <div id="subtitle-status" class="status hidden"></div>
+        <div id="subtitle-downloads" class="actions hidden">
+          <a id="transcript-download" class="button-link" href="#">Download script.whisper.srt</a>
+          <a id="script-download" class="button-link" href="#">Download script.srt</a>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>2. Create video segment</h2>
+        <form id="video-form" class="stack">
+          <label>
+            <span>Source videos</span>
+            <input type="file" name="videos" accept=".mp4,.mov,.m4v,.mkv,.webm,.avi" multiple required />
+          </label>
+          <button type="submit" disabled id="video-submit">Create video outputs</button>
+        </form>
+        <div id="video-status" class="status hidden"></div>
+        <div id="video-downloads" class="actions hidden">
+          <a id="segments-download" class="button-link" href="#">Download all segments</a>
+          <a id="final-download" class="button-link" href="#">Download final video</a>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+  </html>

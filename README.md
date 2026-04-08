@@ -4,11 +4,12 @@ Node.js CLI for turning a JSON script plus audio into subtitles, then turning su
 
 ## What It Does
 
-The tool supports three workflows:
+The tool supports four workflows:
 
 1. Generate `script.srt` from `script.json` and an audio or video file.
 2. Generate one video segment per SRT cue from a folder of source videos.
 3. Concatenate all generated segments into one final video.
+4. Run the same workflows from a browser-based web UI.
 
 The final subtitle text always comes from JSON. Whisper is used only to derive timing from the media.
 
@@ -31,6 +32,9 @@ Create a `.env` file in the repo root:
 FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe
 FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
 WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
+WEB_UI_HOST=127.0.0.1
+WEB_UI_PORT=3000
+WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
 ```
 
 Override these with:
@@ -50,6 +54,9 @@ npm install
 ## Project Structure
 
 - `src/cli.js`: CLI entrypoint
+- `src/web/server.js`: web UI server entrypoint
+- `src/web/app.js`: Express app, routes, upload handling, and download endpoints
+- `src/web/media-worker.js`: background worker for subtitle and video jobs
 - `src/subtitle-generation.js`: JSON validation, Whisper transcript creation, transcript mapping, SRT generation
 - `src/video-segment-generation.js`: SRT-driven segment generation and final concat
 - `src/logger.js`: Winston logger setup
@@ -83,6 +90,36 @@ Run tests:
 ```bash
 npm test
 ```
+
+### Web UI
+
+Start the browser UI:
+
+```bash
+npm run web-ui
+```
+
+Open:
+
+```text
+http://127.0.0.1:3000
+```
+
+The web UI flow:
+
+1. Upload one audio or video file and one `script.json` file.
+2. Optional: upload an existing `script.whisper.srt` file to skip audio transcription and map directly to `script.json`.
+3. Start subtitle generation and wait for `script.srt` creation.
+4. Download `script.whisper.srt` and `script.srt` after the job completes.
+5. Upload source videos for the same job.
+6. Start video generation.
+7. Download the segment zip and final video after completion.
+
+Web UI notes:
+
+- Long-running media work runs in background worker processes so the server can keep serving status requests.
+- Status is polled from the browser and shows stage, percent, and message.
+- Uploaded and generated files are stored under `WEB_UI_WORKSPACE_ROOT`.
 
 ### 1. Generate Subtitles
 
@@ -196,6 +233,8 @@ The CLI uses Winston for progress logs. Disable them with:
 ```bash
 npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --quiet
 ```
+
+The web UI keeps its own in-memory job state and browser-visible progress based on worker progress updates.
 
 ## Common Errors
 
