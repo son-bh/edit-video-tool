@@ -1,0 +1,208 @@
+# edit-video-tool
+
+Node.js CLI for turning a JSON script plus audio into subtitles, then turning subtitle timing into ordered video segments and a final concatenated video.
+
+## What It Does
+
+The tool supports three workflows:
+
+1. Generate `script.srt` from `script.json` and an audio or video file.
+2. Generate one video segment per SRT cue from a folder of source videos.
+3. Concatenate all generated segments into one final video.
+
+The final subtitle text always comes from JSON. Whisper is used only to derive timing from the media.
+
+## Requirements
+
+- Node.js `20+`
+- `ffmpeg`
+- `ffprobe`
+- Python Whisper CLI
+
+Default tool paths:
+
+- `ffmpeg`: `C:\ffmpeg\bin\ffmpeg.exe`
+- Python Whisper: `%LOCALAPPDATA%\Python\pythoncore-3.14-64\Scripts\whisper.exe`
+
+Override them with:
+
+- `--ffmpeg` or `FFMPEG_PATH`
+- `--ffprobe` or `FFPROBE_PATH`
+- `--whisper-command` or `WHISPER_COMMAND_PATH`
+
+## Install
+
+```bash
+npm install
+```
+
+## Project Structure
+
+- `src/cli.js`: CLI entrypoint
+- `src/subtitle-generation.js`: JSON validation, Whisper transcript creation, transcript mapping, SRT generation
+- `src/video-segment-generation.js`: SRT-driven segment generation and final concat
+- `src/logger.js`: Winston logger setup
+- `tests/`: automated tests
+- `docs/subtitle-generation.md`: detailed workflow notes
+- `assets/`: local sample inputs and outputs for manual verification
+
+## Input Format
+
+JSON input must be an array of objects with non-empty `text` values:
+
+```json
+[
+  { "text": "Something" },
+  { "text": "Something 2" }
+]
+```
+
+Current JSON item limit: `100`
+
+## Commands
+
+Show CLI help:
+
+```bash
+npm run generate-subtitles -- --help
+```
+
+Run tests:
+
+```bash
+npm test
+```
+
+### 1. Generate Subtitles
+
+Full flow:
+
+```bash
+npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en
+```
+
+This does two steps:
+
+1. Create a raw Whisper subtitle file.
+2. Map Whisper timing back to the JSON items and write the final SRT.
+
+Outputs:
+
+- `assets/script/script.whisper.srt`: raw Whisper transcript
+- `assets/script/script.srt`: final JSON-mapped subtitle file
+
+Create only the raw Whisper transcript:
+
+```bash
+npm run generate-subtitles -- --audio assets/audio/audio.MP3 --transcribe-only --transcript-out assets/script/script.whisper.srt --language en
+```
+
+Map an existing Whisper transcript without transcribing again:
+
+```bash
+npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-in assets/script/script.whisper.srt --language en
+```
+
+Use a smaller Whisper model on CPU:
+
+```bash
+npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --whisper-model tiny.en
+```
+
+Git Bash example:
+
+```bash
+npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt
+```
+
+### 2. Generate Video Segments
+
+Generate one output video per subtitle cue:
+
+```bash
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments
+```
+
+The segment workflow:
+
+1. Parse each SRT cue start and end time.
+2. Compute cue duration.
+3. Select the source video by cue order.
+4. Create an output segment that matches the cue duration.
+
+Duration behavior:
+
+- If the cue duration matches the source video duration within tolerance, copy the source video.
+- If the cue duration is shorter, cut the source video from `0` to the cue duration.
+- If the cue duration is longer, repeat and concatenate the source video until the target duration is reached.
+
+Example:
+
+- `13s` cue with a `10s` source video becomes `10 + 3`
+- `24s` cue with a `10s` source video becomes `10 + 10 + 4`
+
+By default, the command fails if there are more cues than source videos. To intentionally reuse videos from the beginning:
+
+```bash
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --loop-videos
+```
+
+Set a custom duration validation tolerance:
+
+```bash
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --duration-tolerance 0.5
+```
+
+### 3. Concatenate All Segments
+
+After segments are generated, concatenate them into one final video:
+
+```bash
+npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4
+```
+
+This reads segment files in deterministic filename order and concatenates them with `ffmpeg`.
+
+## Processing Rules
+
+### Subtitle generation
+
+- JSON is the source of truth for final subtitle text.
+- Final subtitle text must exactly match the JSON `text` field.
+- The tool does not paraphrase, rewrite, split, or merge JSON text.
+- If Whisper transcript text cannot be matched reliably to JSON, generation fails with a clear error.
+
+### Video segment generation
+
+- Cue `1` maps to video `1`, cue `2` maps to video `2`, and so on.
+- Segment files are generated in subtitle order.
+- Final segment duration is validated against the subtitle cue duration.
+
+## Logging
+
+The CLI uses Winston for progress logs. Disable them with:
+
+```bash
+npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --quiet
+```
+
+## Common Errors
+
+Examples of cases that fail fast:
+
+- malformed JSON
+- missing or empty `text` fields
+- more than `100` JSON items
+- missing media file
+- `ffmpeg` or `ffprobe` path issues
+- Whisper transcript creation failure
+- transcript text does not match the JSON sequence
+- invalid SRT timestamps
+- more subtitle cues than videos without `--loop-videos`
+
+## Development Notes
+
+- Runtime: CommonJS on Node.js
+- Logging: Winston
+- Tests: Node test runner via `node --test`
+- Detailed workflow notes: `docs/subtitle-generation.md`
