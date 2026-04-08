@@ -1,170 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %></title>
-    <link rel="stylesheet" href="/static/app.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <div class="brand-mark">MW</div>
-          <div>
-            <p class="eyebrow">Media Workflow</p>
-            <h1>Subtitle and Video Pipeline</h1>
-          </div>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>
+    <%= title %>
+  </title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap"
+    rel="stylesheet">
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">MW</div>
+        <div>
+          <p class="eyebrow">Media Workflow</p>
+          <h1>Subtitle and Video Pipeline</h1>
         </div>
-        <nav class="topnav">
-          <a href="#subtitle-panel">Subtitles</a>
-          <a href="#video-panel">Videos</a>
-          <a href="/health" target="_blank" rel="noreferrer">Health</a>
-        </nav>
-      </header>
+      </div>
+      <nav class="topnav">
+        <a href="#subtitle-panel">Subtitles</a>
+        <a href="#video-panel">Videos</a>
+      </nav>
+    </header>
 
-      <main class="page">
-        <section class="hero">
-          <div class="hero-copy">
-            <span class="badge">Node.js + ffmpeg + Whisper</span>
-            <h2>Upload media once, track each stage, and download the finished outputs.</h2>
-            <p class="hero-text">
-              The web UI runs the same backend flows as the CLI: transcript creation, JSON-mapped subtitle generation,
-              segment rendering, and final video concat.
-            </p>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="badge">Node.js + ffmpeg + Whisper</span>
+          <h2>Upload media once, track each stage, and download the finished outputs.</h2>
+          <p class="hero-text">
+            The web UI runs the same backend flows as the CLI: transcript creation, JSON-mapped subtitle generation,
+            segment rendering, and final video concat.
+          </p>
+        </div>
+        <div class="hero-stats">
+          <article class="stat-card">
+            <span class="stat-label">Step 1</span>
+            <strong>Create `script.whisper.srt`</strong>
+            <p>Audio transcription or uploaded transcript reuse.</p>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Step 2</span>
+            <strong>Create `script.srt`</strong>
+            <p>Timing mapped back to exact JSON text.</p>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Step 3</span>
+            <strong>Render video outputs</strong>
+            <p>Generate segments and final video from subtitle timing.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel-grid">
+        <section id="subtitle-panel" class="workflow-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Workflow 1</p>
+              <h3>Create script from audio and JSON</h3>
+            </div>
+            <span class="panel-tag">Required first</span>
           </div>
-          <div class="hero-stats">
-            <article class="stat-card">
-              <span class="stat-label">Step 1</span>
-              <strong>Create `script.whisper.srt`</strong>
-              <p>Audio transcription or uploaded transcript reuse.</p>
-            </article>
-            <article class="stat-card">
-              <span class="stat-label">Step 2</span>
-              <strong>Create `script.srt`</strong>
-              <p>Timing mapped back to exact JSON text.</p>
-            </article>
-            <article class="stat-card">
-              <span class="stat-label">Step 3</span>
-              <strong>Render video outputs</strong>
-              <p>Generate segments and final video from subtitle timing.</p>
-            </article>
+
+          <div class="panel-body">
+            <form id="subtitle-form" class="stack">
+              <label class="field">
+                <span>Audio or video file</span>
+                <input type="file" name="audio" accept=".mp3,.wav,.m4a,.aac,.mp4,.mov,.mkv" />
+                <small>Use this when transcript generation should run from source media.</small>
+              </label>
+              <label class="field">
+                <span>script.json</span>
+                <input type="file" name="scriptJson" accept=".json,application/json" required />
+                <small>Final subtitle text will match this file exactly.</small>
+              </label>
+              <label class="field">
+                <span>script.whisper.srt</span>
+                <input type="file" name="transcriptSrt" accept=".srt" />
+                <small>Optional. Upload this to skip transcription and map directly to the JSON file.</small>
+              </label>
+              <div class="form-actions">
+                <button type="submit">Create script</button>
+              </div>
+            </form>
+
+            <aside class="progress-card">
+              <div class="progress-header">
+                <div>
+                  <p class="eyebrow">Job status</p>
+                  <h4>Subtitle generation</h4>
+                </div>
+                <span id="subtitle-phase-pill" class="status-pill">Idle</span>
+              </div>
+
+              <div class="progress-meter">
+                <div id="subtitle-progress-bar" class="progress-fill"></div>
+              </div>
+              <p id="subtitle-progress-text" class="progress-text">Waiting for input.</p>
+              <div id="subtitle-status" class="status-panel hidden"></div>
+
+              <ol class="stage-list">
+                <li><span class="stage-dot"></span>Queue subtitle job</li>
+                <li><span class="stage-dot"></span>Create transcript or use uploaded transcript</li>
+                <li><span class="stage-dot"></span>Map transcript to JSON and write `script.srt`</li>
+              </ol>
+
+              <div id="subtitle-downloads" class="actions hidden">
+                <a id="transcript-download" class="button-link secondary" href="#">Download script.whisper.srt</a>
+                <a id="script-download" class="button-link" href="#">Download script.srt</a>
+              </div>
+            </aside>
           </div>
         </section>
 
-        <section class="panel-grid">
-          <section id="subtitle-panel" class="workflow-panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Workflow 1</p>
-                <h3>Create script from audio and JSON</h3>
+        <section id="video-panel" class="workflow-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Workflow 2</p>
+              <h3>Create video segments and final video</h3>
+            </div>
+            <span class="panel-tag muted-tag">Available after script.srt</span>
+          </div>
+
+          <div class="panel-body">
+            <form id="video-form" class="stack">
+              <label class="field">
+                <span>Source videos</span>
+                <input type="file" name="videos" accept=".mp4,.mov,.m4v,.mkv,.webm,.avi" multiple required />
+                <small>Upload the ordered source videos used to build cue-matched segments.</small>
+              </label>
+              <div class="form-actions">
+                <button type="submit" disabled id="video-submit">Create video outputs</button>
               </div>
-              <span class="panel-tag">Required first</span>
-            </div>
+            </form>
 
-            <div class="panel-body">
-              <form id="subtitle-form" class="stack">
-                <label class="field">
-                  <span>Audio or video file</span>
-                  <input type="file" name="audio" accept=".mp3,.wav,.m4a,.aac,.mp4,.mov,.mkv" />
-                  <small>Use this when transcript generation should run from source media.</small>
-                </label>
-                <label class="field">
-                  <span>script.json</span>
-                  <input type="file" name="scriptJson" accept=".json,application/json" required />
-                  <small>Final subtitle text will match this file exactly.</small>
-                </label>
-                <label class="field">
-                  <span>script.whisper.srt</span>
-                  <input type="file" name="transcriptSrt" accept=".srt" />
-                  <small>Optional. Upload this to skip transcription and map directly to the JSON file.</small>
-                </label>
-                <div class="form-actions">
-                  <button type="submit">Create script</button>
+            <aside class="progress-card">
+              <div class="progress-header">
+                <div>
+                  <p class="eyebrow">Job status</p>
+                  <h4>Video generation</h4>
                 </div>
-              </form>
-
-              <aside class="progress-card">
-                <div class="progress-header">
-                  <div>
-                    <p class="eyebrow">Job status</p>
-                    <h4>Subtitle generation</h4>
-                  </div>
-                  <span id="subtitle-phase-pill" class="status-pill">Idle</span>
-                </div>
-
-                <div class="progress-meter">
-                  <div id="subtitle-progress-bar" class="progress-fill"></div>
-                </div>
-                <p id="subtitle-progress-text" class="progress-text">Waiting for input.</p>
-                <div id="subtitle-status" class="status-panel hidden"></div>
-
-                <ol class="stage-list">
-                  <li><span class="stage-dot"></span>Queue subtitle job</li>
-                  <li><span class="stage-dot"></span>Create transcript or use uploaded transcript</li>
-                  <li><span class="stage-dot"></span>Map transcript to JSON and write `script.srt`</li>
-                </ol>
-
-                <div id="subtitle-downloads" class="actions hidden">
-                  <a id="transcript-download" class="button-link secondary" href="#">Download script.whisper.srt</a>
-                  <a id="script-download" class="button-link" href="#">Download script.srt</a>
-                </div>
-              </aside>
-            </div>
-          </section>
-
-          <section id="video-panel" class="workflow-panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Workflow 2</p>
-                <h3>Create video segments and final video</h3>
+                <span id="video-phase-pill" class="status-pill">Locked</span>
               </div>
-              <span class="panel-tag muted-tag">Available after script.srt</span>
-            </div>
 
-            <div class="panel-body">
-              <form id="video-form" class="stack">
-                <label class="field">
-                  <span>Source videos</span>
-                  <input type="file" name="videos" accept=".mp4,.mov,.m4v,.mkv,.webm,.avi" multiple required />
-                  <small>Upload the ordered source videos used to build cue-matched segments.</small>
-                </label>
-                <div class="form-actions">
-                  <button type="submit" disabled id="video-submit">Create video outputs</button>
-                </div>
-              </form>
+              <div class="progress-meter">
+                <div id="video-progress-bar" class="progress-fill"></div>
+              </div>
+              <p id="video-progress-text" class="progress-text">Create subtitles first to unlock this step.</p>
+              <div id="video-status" class="status-panel hidden"></div>
 
-              <aside class="progress-card">
-                <div class="progress-header">
-                  <div>
-                    <p class="eyebrow">Job status</p>
-                    <h4>Video generation</h4>
-                  </div>
-                  <span id="video-phase-pill" class="status-pill">Locked</span>
-                </div>
+              <ol class="stage-list">
+                <li><span class="stage-dot"></span>Upload and validate source videos</li>
+                <li><span class="stage-dot"></span>Create timed segments from subtitle cues</li>
+                <li><span class="stage-dot"></span>Concat all segments into final video</li>
+              </ol>
 
-                <div class="progress-meter">
-                  <div id="video-progress-bar" class="progress-fill"></div>
-                </div>
-                <p id="video-progress-text" class="progress-text">Create subtitles first to unlock this step.</p>
-                <div id="video-status" class="status-panel hidden"></div>
-
-                <ol class="stage-list">
-                  <li><span class="stage-dot"></span>Upload and validate source videos</li>
-                  <li><span class="stage-dot"></span>Create timed segments from subtitle cues</li>
-                  <li><span class="stage-dot"></span>Concat all segments into final video</li>
-                </ol>
-
-                <div id="video-downloads" class="actions hidden">
-                  <a id="segments-download" class="button-link secondary" href="#">Download all segments</a>
-                  <a id="final-download" class="button-link" href="#">Download final video</a>
-                </div>
-              </aside>
-            </div>
-          </section>
+              <div id="video-downloads" class="actions hidden">
+                <a id="segments-download" class="button-link secondary" href="#">Download all segments</a>
+                <a id="final-download" class="button-link" href="#">Download final video</a>
+              </div>
+            </aside>
+          </div>
         </section>
-      </main>
-    </div>
-    <script src="/static/app.js"></script>
-  </body>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+
 </html>

@@ -26,10 +26,18 @@ html {
 
 body {
   margin: 0;
-  font-family: Inter, Arial, sans-serif;
+  font-family: "DM Sans", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(47, 111, 237, 0.18), transparent 32%),
-    radial-gradient(circle at top right, rgba(21, 184, 166, 0.14), transparent 28%),
+    radial-gradient(
+      circle at top left,
+      rgba(47, 111, 237, 0.18),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(21, 184, 166, 0.14),
+      transparent 28%
+    ),
     linear-gradient(180deg, #06101b 0%, #091523 100%);
   color: var(--text);
   min-height: 100vh;
@@ -297,7 +305,11 @@ button[disabled] {
   padding: 20px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(12, 29, 48, 0.95), rgba(9, 22, 37, 0.95));
+  background: linear-gradient(
+    180deg,
+    rgba(12, 29, 48, 0.95),
+    rgba(9, 22, 37, 0.95)
+  );
 }
 
 .progress-header {
