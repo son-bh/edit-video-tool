@@ -75,6 +75,73 @@ Use a custom Python Whisper command:
 npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --whisper-command C:\path\to\whisper.exe
 ```
 
+## Video Segment Generation
+
+After `script.srt` exists, generate one video segment per subtitle cue:
+
+```bash
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments
+```
+
+The command:
+
+1. Parses each SRT cue start/end timestamp.
+2. Calculates cue duration from `end - start`.
+3. Reads source videos from the video folder in deterministic filename order.
+4. Maps cue 1 to video 1, cue 2 to video 2, and so on.
+5. Uses `ffmpeg` to create `segment-001.mp4`, `segment-002.mp4`, etc.
+
+Duration behavior:
+
+- If cue duration equals the selected source video duration within tolerance, the video is copied with `ffmpeg`.
+- If cue duration is shorter than the source video duration, the source video is cut from `0` to the cue duration.
+- If cue duration is longer than the source video duration, the source video is repeated and concatenated. For example, a 24-second cue with a 10-second source video becomes `10 + 10 + 4`.
+
+By default, generation fails if there are more SRT cues than source videos:
+
+```text
+Missing source video for subtitle cue N
+```
+
+To intentionally reuse videos from the beginning, pass `--loop-videos`:
+
+```bash
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --loop-videos
+```
+
+Use a custom tolerance for output duration validation:
+
+```bash
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --duration-tolerance 0.5
+```
+
+Use a custom `ffprobe` path:
+
+```bash
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --ffprobe C:\path\to\ffprobe.exe
+```
+
+## Final Video Concat
+
+After all segment videos are generated, concatenate them into one final video:
+
+```bash
+npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4
+```
+
+This command:
+
+1. Reads all segment videos from the segment folder in deterministic filename order.
+2. Builds an ffmpeg concat list.
+3. Concatenates the segment files into one final output video.
+4. Probes the output duration to confirm the final file was created successfully.
+
+Use a custom `ffmpeg` or `ffprobe` path if needed:
+
+```bash
+npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --ffmpeg C:\ffmpeg\bin\ffmpeg.exe --ffprobe C:\ffmpeg\bin\ffprobe.exe
+```
+
 ## JSON Format
 
 ```json

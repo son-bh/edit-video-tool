@@ -9,7 +9,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "generate-subtitles": "node src/cli.js"
+    "generate-subtitles": "node src/cli.js",
+    "generate-video-segments": "node src/cli.js"
   },
   "dependencies": {
     "winston": "^3.17.0"

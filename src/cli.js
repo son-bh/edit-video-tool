@@ -6,22 +6,33 @@ const {
   generateSubtitles
 } = require('./subtitle-generation');
 const { createLogger } = require('./logger');
+const { concatSegmentFolder, generateVideoSegments } = require('./video-segment-generation');
 
 function printUsage() {
   console.log([
     'Usage: node src/cli.js --json <subtitles.json> --audio <audio-or-video> --out <output.srt>',
+    '       node src/cli.js --srt <script.srt> --videos <video-folder> --segments-out <output-folder>',
+    '       node src/cli.js --concat-segments <segment-folder> --final-out <output-video>',
     '',
     'Options:',
     '  --json   Path to JSON array of subtitle text items',
     '  --audio  Path to an audio/video file. PCM WAV is read directly; other formats require ffmpeg',
     '  --out    Path for the generated SRT subtitle file',
+    '  --srt    Path to an existing SRT file for video segment generation',
+    '  --videos Path to a folder of source videos for video segment generation',
+    '  --segments-out Path to write generated video segments',
+    '  --concat-segments Path to a folder of generated segment videos to concatenate',
+    '  --final-out Path for the concatenated final video output',
     '  --ffmpeg Optional path to ffmpeg executable. Defaults to C:\\ffmpeg\\bin\\ffmpeg.exe, with FFMPEG_PATH also supported',
+    '  --ffprobe Optional path to ffprobe executable. Defaults to ffprobe.exe next to ffmpeg, with FFPROBE_PATH also supported',
     '  --whisper-command Optional path to Python whisper executable. Defaults to C:\\Users\\sonbh\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\whisper.exe',
     '  --whisper-model Optional Whisper model name/path. Python Whisper defaults to turbo. ffmpeg Whisper uses WHISPER_MODEL_PATH for model files',
     '  --language Optional transcription language for Whisper, default auto',
     '  --transcript-in Optional existing Whisper SRT transcript to map instead of transcribing again',
     '  --transcript-out Optional path to save the raw Whisper SRT transcript',
     '  --transcribe-only Create only the raw Whisper transcript and skip JSON mapping',
+    '  --duration-tolerance Optional duration tolerance in seconds for generated video segments',
+    '  --loop-videos Reuse source videos from the beginning if there are more SRT cues than videos',
     '  --quiet Disable progress logs'
   ].join('\n'));
 }
@@ -47,7 +58,12 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (!['--json', '--audio', '--out', '--ffmpeg', '--whisper-command', '--whisper-model', '--language', '--transcript-in', '--transcript-out'].includes(flag)) {
+    if (flag === '--loop-videos') {
+      args.loopVideos = true;
+      continue;
+    }
+
+    if (!['--json', '--audio', '--out', '--srt', '--videos', '--segments-out', '--concat-segments', '--final-out', '--ffmpeg', '--ffprobe', '--whisper-command', '--whisper-model', '--language', '--transcript-in', '--transcript-out', '--duration-tolerance'].includes(flag)) {
       throw new Error(`Unknown argument: ${flag}`);
     }
 
@@ -79,13 +95,28 @@ function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  if (args.transcribeOnly && !args.audio) {
+  const isConcatSegments = Boolean(args['concat-segments'] || args['final-out']);
+  const isSegmentGeneration = Boolean(args.srt || args.videos || args['segments-out']);
+
+  if (isConcatSegments && (!args['concat-segments'] || !args['final-out'])) {
+    console.error('Missing required final concat arguments.');
+    printUsage();
+    return 2;
+  }
+
+  if (isSegmentGeneration && (!args.srt || !args.videos || !args['segments-out'])) {
+    console.error('Missing required segment generation arguments.');
+    printUsage();
+    return 2;
+  }
+
+  if (!isSegmentGeneration && !isConcatSegments && args.transcribeOnly && !args.audio) {
     console.error('Missing required --audio argument.');
     printUsage();
     return 2;
   }
 
-  if (!args.transcribeOnly && (!args.json || !args.audio || !args.out)) {
+  if (!isSegmentGeneration && !isConcatSegments && !args.transcribeOnly && (!args.json || !args.audio || !args.out)) {
     console.error('Missing required arguments.');
     printUsage();
     return 2;
@@ -93,6 +124,44 @@ function main(argv = process.argv.slice(2)) {
 
   try {
     const logger = createLogger({ quiet: args.quiet });
+
+    if (isConcatSegments) {
+      const result = concatSegmentFolder({
+        segmentDir: args['concat-segments'],
+        outputPath: args['final-out'],
+        ffmpegPath: args.ffmpeg,
+        ffprobePath: args.ffprobe,
+        logger
+      });
+
+      console.log(`Concatenated ${result.segmentPaths.length} segments into ${args['final-out']}`);
+      return 0;
+    }
+
+    if (isSegmentGeneration) {
+      const durationToleranceSeconds = args['duration-tolerance'] ? Number(args['duration-tolerance']) : undefined;
+
+      if (args['duration-tolerance'] && (!Number.isFinite(durationToleranceSeconds) || durationToleranceSeconds < 0)) {
+        console.error('Invalid --duration-tolerance value.');
+        printUsage();
+        return 2;
+      }
+
+      const result = generateVideoSegments({
+        srtPath: args.srt,
+        videoDir: args.videos,
+        outputDir: args['segments-out'],
+        ffmpegPath: args.ffmpeg,
+        ffprobePath: args.ffprobe,
+        loopVideos: args.loopVideos,
+        durationToleranceSeconds,
+        logger
+      });
+
+      console.log(`Generated ${result.outputs.length} video segments at ${args['segments-out']}`);
+      return 0;
+    }
+
     const defaultTranscriptOut = args['transcript-out'] || (args.out
       ? args.out.replace(/(\.[^./\\]+)?$/, '.whisper.srt')
       : args.audio.replace(/(\.[^./\\]+)?$/, '.whisper.srt'));
