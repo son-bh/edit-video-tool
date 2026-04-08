@@ -16,6 +16,8 @@
   const videoProgressText = document.getElementById('video-progress-text');
   const subtitlePhasePill = document.getElementById('subtitle-phase-pill');
   const videoPhasePill = document.getElementById('video-phase-pill');
+  const subtitleJobFolder = document.getElementById('subtitle-job-folder');
+  const videoJobFolder = document.getElementById('video-job-folder');
 
   let currentJobId = null;
   let pollTimer = null;
@@ -41,6 +43,17 @@
     } else if (status === 'running') {
       phasePill.classList.add('running');
     }
+  }
+
+  function setJobFolder(element, folderName) {
+    if (!folderName) {
+      element.textContent = '';
+      element.classList.add('hidden');
+      return;
+    }
+
+    element.textContent = `Job folder: ${folderName}`;
+    element.classList.remove('hidden');
   }
 
   function clearPoll() {
@@ -69,6 +82,7 @@
     if (job.phase === 'subtitle' || job.completedPhases.subtitle) {
       const subtitleStatusText = `${job.stage}: ${job.percent}%${job.message ? ` - ${job.message}` : ''}`;
       setStatus(subtitleStatus, subtitleStatusText, job.status === 'failed');
+      setJobFolder(subtitleJobFolder, job.folderName);
       setProgress(
         subtitleProgressBar,
         subtitleProgressText,
@@ -104,6 +118,7 @@
     if (job.phase === 'video' || job.completedPhases.video) {
       const videoStatusText = `${job.stage}: ${job.percent}%${job.message ? ` - ${job.message}` : ''}`;
       setStatus(videoStatus, videoStatusText, job.status === 'failed');
+      setJobFolder(videoJobFolder, job.folderName);
       setProgress(
         videoProgressBar,
         videoProgressText,
@@ -131,7 +146,7 @@
       if (job.status === 'running' || job.stage === 'queued') {
         pollTimer = setTimeout(function () {
           pollJob(jobId);
-        }, 1000);
+        }, 2500);
       }
     } catch (error) {
       if (jobId === currentJobId) {

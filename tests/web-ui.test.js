@@ -127,11 +127,13 @@ test('subtitle route starts a job, exposes status, and allows script download', 
 
     assert.equal(response.status, 202);
     assert.equal(data.job.completedPhases.subtitle, true);
+    assert.match(data.job.folderName, /^\d{8}-\d{6}-/);
 
     const statusResponse = await fetch(baseUrl + `/api/jobs/${data.job.id}`);
     const statusData = await statusResponse.json();
     assert.equal(statusResponse.status, 200);
     assert.equal(statusData.job.outputs.hasScriptSrt, true);
+    assert.equal(statusData.job.folderName, data.job.folderName);
 
     const downloadResponse = await fetch(baseUrl + `/download/${data.job.id}/script`);
     const downloadBody = await downloadResponse.text();
@@ -211,10 +213,12 @@ test('video route rejects generation before subtitle success', async () => withT
 
 test('video route starts a job and exposes segment and final video downloads', async () => withTempDir(async (workspaceRoot) => {
   const jobStore = createJobStore();
+  const workspace = createJobWorkspace('job-video-ready', workspaceRoot);
   const job = jobStore.create({
-    workspace: createJobWorkspace('job-video-ready', workspaceRoot),
+    folderName: workspace.folderName,
+    workspace,
     outputs: {
-      scriptSrt: path.join(workspaceRoot, 'jobs', 'job-video-ready', 'outputs', 'script.srt')
+      scriptSrt: path.join(workspace.outputs, 'script.srt')
     }
   });
 

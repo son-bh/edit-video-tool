@@ -38,6 +38,7 @@ function serializeJob(job) {
 
   return {
     id: job.id,
+    folderName: job.folderName,
     phase: job.phase,
     status: job.status,
     stage: job.stage,
@@ -125,7 +126,12 @@ function createApp(options = {}) {
     }
 
     const job = jobStore.create();
-    const workspace = createJobWorkspace(job.id, workspaceRoot);
+    const workspace = createJobWorkspace(job.id, workspaceRoot, {
+      createdAt: job.createdAt
+    });
+    jobStore.update(job.id, {
+      folderName: workspace.folderName
+    });
     const audioPath = audioFile
       ? moveFile(audioFile.path, path.join(workspace.inputs, `audio${path.extname(audioFile.originalname).toLowerCase()}`))
       : null;

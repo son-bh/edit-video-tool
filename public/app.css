@@ -226,7 +226,7 @@ a {
 
 .panel-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 40%;
   gap: 20px;
   padding: 24px;
 }
@@ -358,6 +358,13 @@ button[disabled] {
 .progress-text {
   margin: 0;
   color: var(--muted);
+  line-height: 1.5;
+}
+
+.job-folder {
+  margin: -4px 0 0;
+  color: #89a3c4;
+  font-size: 12px;
   line-height: 1.5;
 }
 

@@ -18,6 +18,7 @@ function createJobStore() {
       const now = new Date().toISOString();
       const job = {
         id: seed.id || randomUUID(),
+        folderName: seed.folderName || null,
         phase: seed.phase || null,
         status: seed.status || 'created',
         stage: seed.stage || 'idle',
