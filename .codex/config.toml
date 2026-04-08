@@ -1,0 +1,25 @@
+[agents]
+max_threads = 6
+max_depth = 1
+
+[defaults]
+model = "gpt-5-codex"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# Register agents
+[agents.backend-developer]
+config_file = "agents/backend-developer.toml"
+description = "Back End Developer"
+
+[agents.frontend-developer]
+config_file = "agents/frontend-developer.toml"
+description = "Front End Developer"
+
+[agents.tester]
+config_file = "agents/tester.toml"
+description = "Tester engineer"
+
+[agents.reviewer]
+config_file = "agents/reviewer.toml"
+description = "Code reviewer"

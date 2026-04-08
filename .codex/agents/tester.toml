@@ -1,0 +1,4 @@
+model = "gpt-5.4-mini"
+sandbox_mode = "workspace-write"
+
+model_instructions_file = "agents/tester.md"

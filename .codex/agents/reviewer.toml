@@ -1,0 +1,4 @@
+model = "gpt-5.3-codex"
+sandbox_mode = "read-only"
+
+model_instructions_file = "agents/reviewer.md"
