@@ -19,16 +19,27 @@ The final subtitle text always comes from JSON. Whisper is used only to derive t
 - `ffprobe`
 - Python Whisper CLI
 
-Default tool paths:
+Tool path configuration:
 
-- `ffmpeg`: `C:\ffmpeg\bin\ffmpeg.exe`
-- Python Whisper: `%LOCALAPPDATA%\Python\pythoncore-3.14-64\Scripts\whisper.exe`
+- `.env`
+- CLI flags
+- existing process environment
 
-Override them with:
+Create a `.env` file in the repo root:
+
+```dotenv
+FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe
+FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
+WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
+```
+
+Override these with:
 
 - `--ffmpeg` or `FFMPEG_PATH`
 - `--ffprobe` or `FFPROBE_PATH`
 - `--whisper-command` or `WHISPER_COMMAND_PATH`
+
+CLI flags still win over `.env`.
 
 ## Install
 

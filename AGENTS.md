@@ -26,12 +26,15 @@ Use the checked-in npm scripts:
 - `npm run generate-subtitles -- --audio assets/audio/audio.MP3 --transcribe-only --transcript-out assets/script/script.whisper.srt --language en`: create only the raw Whisper transcript.
 - `npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-in assets/script/script.whisper.srt --language en`: map an existing Whisper transcript without re-transcribing.
 
-The CLI defaults to:
+Tool paths are normally loaded from a repo-root `.env` file:
 
-- `ffmpeg`: `C:\ffmpeg\bin\ffmpeg.exe`
-- Python Whisper: `C:\Users\sonbh\AppData\Local\Python\pythoncore-3.14-64\Scripts\whisper.exe`
+```dotenv
+FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe
+FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
+WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
+```
 
-Override these with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. Use `--quiet` to disable Winston progress logs.
+Override these with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`. Use `--quiet` to disable Winston progress logs.
 
 ## Subtitle Generation Flow
 

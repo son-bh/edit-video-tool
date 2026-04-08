@@ -5,8 +5,11 @@ const {
   createWhisperSubtitleFile,
   generateSubtitles
 } = require('./subtitle-generation');
+const { loadEnvFile } = require('./env');
 const { createLogger } = require('./logger');
 const { concatSegmentFolder, generateVideoSegments } = require('./video-segment-generation');
+
+loadEnvFile();
 
 function printUsage() {
   console.log([
@@ -23,9 +26,9 @@ function printUsage() {
     '  --segments-out Path to write generated video segments',
     '  --concat-segments Path to a folder of generated segment videos to concatenate',
     '  --final-out Path for the concatenated final video output',
-    '  --ffmpeg Optional path to ffmpeg executable. Defaults to C:\\ffmpeg\\bin\\ffmpeg.exe, with FFMPEG_PATH also supported',
-    '  --ffprobe Optional path to ffprobe executable. Defaults to ffprobe.exe next to ffmpeg, with FFPROBE_PATH also supported',
-    '  --whisper-command Optional path to Python whisper executable. Defaults to C:\\Users\\sonbh\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\whisper.exe',
+    '  --ffmpeg Optional path to ffmpeg executable. Defaults to FFMPEG_PATH from .env or the system PATH',
+    '  --ffprobe Optional path to ffprobe executable. Defaults to FFPROBE_PATH from .env or ffprobe.exe next to ffmpeg',
+    '  --whisper-command Optional path to Python whisper executable. Defaults to WHISPER_COMMAND_PATH from .env or the system PATH',
     '  --whisper-model Optional Whisper model name/path. Python Whisper defaults to turbo. ffmpeg Whisper uses WHISPER_MODEL_PATH for model files',
     '  --language Optional transcription language for Whisper, default auto',
     '  --transcript-in Optional existing Whisper SRT transcript to map instead of transcribing again',

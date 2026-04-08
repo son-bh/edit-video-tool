@@ -4,8 +4,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const DEFAULT_MAX_ITEMS = 100;
-const DEFAULT_FFMPEG_COMMAND = 'C:\\ffmpeg\\bin\\ffmpeg.exe';
-const DEFAULT_WHISPER_COMMAND = 'C:\\Users\\sonbh\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\whisper.exe';
+const DEFAULT_FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+const DEFAULT_WHISPER_COMMAND = process.platform === 'win32' ? 'whisper.exe' : 'whisper';
 
 function logStep(options = {}, message) {
   if (options.logger && typeof options.logger.info === 'function') {
@@ -146,7 +146,7 @@ function transcodeMediaToPcmWav(audioPath, options = {}) {
     const detail = stderr ? ` ${stderr}` : '';
     throw new AudioAnalysisError(
       `Audio file is not a supported PCM WAV file and ffmpeg could not decode it. ` +
-      `Install ffmpeg at C:\\ffmpeg\\bin\\ffmpeg.exe, add ffmpeg to PATH, set FFMPEG_PATH, or pass --ffmpeg.${detail}`
+      `Set FFMPEG_PATH in .env, add ffmpeg to PATH, or pass --ffmpeg.${detail}`
     );
   } finally {
     fs.rmSync(tempPath, { force: true });

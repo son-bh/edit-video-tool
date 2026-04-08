@@ -26,3 +26,4 @@ dev-dist
 
 test-results
 assets
+.env

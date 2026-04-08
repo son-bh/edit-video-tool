@@ -12,10 +12,17 @@ The JSON file is the source of truth for subtitle text. Whisper is used to creat
 - Audio input: any audio/video format that `ffmpeg` can decode, such as MP3, MP4, M4A, MOV, AAC, and WAV.
 - Raw transcript output: Whisper-generated SRT.
 - Final output: JSON-mapped SRT.
-- Default `ffmpeg`: `C:\ffmpeg\bin\ffmpeg.exe`.
-- Default Python Whisper: `C:\Users\sonbh\AppData\Local\Python\pythoncore-3.14-64\Scripts\whisper.exe`.
+- Tool paths are loaded from `.env`, CLI flags, or the current process environment.
 
-Override tool paths with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`.
+Example `.env`:
+
+```dotenv
+FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe
+FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
+WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
+```
+
+Override tool paths with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`.
 
 ## Flow
 
