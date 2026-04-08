@@ -1,4 +1,5 @@
 model = "gpt-5.4-mini"
 sandbox_mode = "workspace-write"
+approval_policy = "on-request"
 
 model_instructions_file = "agents/tester.md"

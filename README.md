@@ -45,6 +45,23 @@ Override these with:
 
 CLI flags still win over `.env`.
 
+## One-Time Setup
+
+If you share this project as a zip file, do not include `node_modules`, Python environments, or Whisper model/runtime folders. After extracting the zip on Windows, run:
+
+```powershell
+.\setup.cmd
+```
+
+What setup does:
+
+- checks `node`, `npm`, `python`, `ffmpeg`, `ffprobe`, and `whisper`
+- creates or updates `.env`
+- writes detected executable paths into `.env`
+- runs `npm install`
+
+If one of the required tools is missing, setup stops with a clear error so the machine can be fixed before use.
+
 ## Install
 
 ```bash
@@ -98,6 +115,12 @@ Start the browser UI:
 ```bash
 npm run web-ui
 ```
+
+For a zip-based handoff, the practical flow is:
+
+1. extract the zip
+2. run `.\setup.cmd` once
+3. run `npm run web-ui`
 
 Open:
 
