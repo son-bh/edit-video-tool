@@ -73,21 +73,24 @@
           <div class="panel-body">
             <form id="subtitle-form" class="stack">
               <label class="field">
-                <span>Audio or video file</span>
+                <span>Audio</span>
                 <input type="file" name="audio" accept=".mp3,.wav,.m4a,.aac,.mp4,.mov,.mkv" />
+                <button type="button" class="input-clear-button" data-clear-input="audio">Clear selected file</button>
                 <small>Use this when transcript generation should run from source media.</small>
               </label>
               <label class="field">
                 <span class="field-heading">
-                  <span>script.json</span>
+                  <span>Script of Video (JSON file)</span>
                   <a class="inline-link" href="/download/script-json-example">Download example</a>
                 </span>
                 <input type="file" name="scriptJson" accept=".json,application/json" required />
+                <button type="button" class="input-clear-button" data-clear-input="scriptJson">Clear selected file</button>
                 <small>Final subtitle text will match this file exactly.</small>
               </label>
               <label class="field">
-                <span>script.whisper.srt</span>
+                <span>Subtitle from Audio (script.whisper.srt)</span>
                 <input type="file" name="transcriptSrt" accept=".srt" />
+                <button type="button" class="input-clear-button" data-clear-input="transcriptSrt">Clear selected file</button>
                 <small>Optional. Upload this to skip transcription and map directly to the JSON file.</small>
               </label>
               <label class="field">
@@ -146,8 +149,15 @@
           <div class="panel-body">
             <form id="video-form" class="stack">
               <label class="field">
+                <span>Final Subtitles (script.srt)</span>
+                <input type="file" name="scriptSrt" accept=".srt" />
+                <button type="button" class="input-clear-button" data-clear-input="scriptSrt">Clear selected file</button>
+                <small>Optional. Upload this if the page was reloaded or you already generated subtitles earlier.</small>
+              </label>
+              <label class="field">
                 <span>Source videos</span>
                 <input type="file" name="videos" accept=".mp4,.mov,.m4v,.mkv,.webm,.avi" multiple required />
+                <button type="button" class="input-clear-button" data-clear-input="videos">Clear selected files</button>
                 <small>Upload the ordered source videos used to build cue-matched segments.</small>
               </label>
               <div class="form-actions">

@@ -18,6 +18,9 @@
   const videoPhasePill = document.getElementById('video-phase-pill');
   const subtitleJobFolder = document.getElementById('subtitle-job-folder');
   const videoJobFolder = document.getElementById('video-job-folder');
+  const clearButtons = document.querySelectorAll('[data-clear-input]');
+  const videoScriptInput = document.querySelector('input[name="scriptSrt"]');
+  const videoFilesInput = document.querySelector('input[name="videos"]');
 
   let currentJobId = null;
   let pollTimer = null;
@@ -63,6 +66,23 @@
     }
   }
 
+  function clearFileInput(name) {
+    const input = document.querySelector(`input[name="${name}"]`);
+
+    if (!input) {
+      return;
+    }
+
+    input.value = '';
+    refreshVideoAvailability();
+  }
+
+  function refreshVideoAvailability() {
+    const hasCurrentScript = Boolean(currentJobId);
+    const hasUploadedScript = Boolean(videoScriptInput && videoScriptInput.files && videoScriptInput.files.length > 0);
+    videoSubmit.disabled = !(hasCurrentScript || hasUploadedScript);
+  }
+
   async function fetchJob(jobId) {
     const response = await fetch(`/api/jobs/${jobId}`);
     const data = await response.json();
@@ -94,7 +114,7 @@
     }
 
     if (job.completedPhases.subtitle && job.outputs.hasScriptSrt) {
-      videoSubmit.disabled = false;
+      refreshVideoAvailability();
       scriptDownload.href = `/download/${job.id}/script`;
       if (job.outputs.hasTranscriptSrt) {
         transcriptDownload.href = `/download/${job.id}/transcript`;
@@ -182,25 +202,32 @@
 
     currentJobId = data.job.id;
     updateUi(data.job);
+    refreshVideoAvailability();
     pollJob(currentJobId);
   });
 
   videoForm.addEventListener('submit', async function (event) {
     event.preventDefault();
 
-    if (!currentJobId) {
-      setStatus(videoStatus, 'Create subtitles first.', true);
-      setProgress(videoProgressBar, videoProgressText, videoPhasePill, 0, 'Create subtitles first.', 'failed');
-      return;
-    }
-
     clearPoll();
     videoDownloads.classList.add('hidden');
     const formData = new FormData(videoForm);
+    const uploadedScript = formData.get('scriptSrt');
+    const hasUploadedScript = uploadedScript instanceof File && uploadedScript.size > 0;
+    const endpoint = currentJobId && !hasUploadedScript
+      ? `/api/jobs/${currentJobId}/videos`
+      : '/api/jobs/videos';
+
+    if (!currentJobId && !hasUploadedScript) {
+      setStatus(videoStatus, 'Upload script.srt or create subtitles first.', true);
+      setProgress(videoProgressBar, videoProgressText, videoPhasePill, 0, 'Upload script.srt or create subtitles first.', 'failed');
+      return;
+    }
+
     setStatus(videoStatus, 'Uploading source videos...', false);
     setProgress(videoProgressBar, videoProgressText, videoPhasePill, 48, 'Uploading source videos...', 'running');
 
-    const response = await fetch(`/api/jobs/${currentJobId}/videos`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       body: formData
     });
@@ -212,7 +239,25 @@
       return;
     }
 
+    currentJobId = data.job.id;
     updateUi(data.job);
+    refreshVideoAvailability();
     pollJob(currentJobId);
   });
+
+  clearButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      clearFileInput(button.getAttribute('data-clear-input'));
+    });
+  });
+
+  if (videoScriptInput) {
+    videoScriptInput.addEventListener('change', refreshVideoAvailability);
+  }
+
+  if (videoFilesInput) {
+    videoFilesInput.addEventListener('change', refreshVideoAvailability);
+  }
+
+  refreshVideoAvailability();
 }());

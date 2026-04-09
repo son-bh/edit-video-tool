@@ -13,6 +13,7 @@ const {
 } = require('./subtitle-generation');
 
 const DEFAULT_DURATION_TOLERANCE_SECONDS = 0.25;
+const DEFAULT_SEGMENT_BUFFER_SECONDS = 0.5;
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([
   '.mp4',
   '.mov',
@@ -34,7 +35,27 @@ function logInfo(options = {}, message) {
   }
 }
 
-function parseSegmentSrtText(srtText) {
+function roundSegmentDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return seconds;
+  }
+
+  const wholeSeconds = Math.floor(seconds);
+  const milliseconds = Math.round((seconds - wholeSeconds) * 1000);
+
+  if (milliseconds > 0) {
+    return wholeSeconds + 1;
+  }
+
+  return Math.max(wholeSeconds, 1);
+}
+
+function getBufferedSegmentDuration(seconds, options = {}) {
+  const bufferSeconds = options.segmentBufferSeconds ?? DEFAULT_SEGMENT_BUFFER_SECONDS;
+  return roundSegmentDuration(seconds + bufferSeconds);
+}
+
+function parseSegmentSrtText(srtText, options = {}) {
   let cues;
 
   try {
@@ -56,7 +77,7 @@ function parseSegmentSrtText(srtText) {
       index: index + 1,
       start: cue.start,
       end: cue.end,
-      duration: cue.end - cue.start,
+      duration: getBufferedSegmentDuration(cue.end - cue.start, options),
       text: cue.text
     };
   });
@@ -74,7 +95,7 @@ function parseSegmentSrtFile(srtPath, options = {}) {
     throw new ValidationError(`SRT path is not a file: ${srtPath}`);
   }
 
-  return parseSegmentSrtText(fs.readFileSync(srtPath, 'utf8'));
+  return parseSegmentSrtText(fs.readFileSync(srtPath, 'utf8'), options);
 }
 
 function discoverSourceVideos(videoDir, options = {}) {
@@ -310,9 +331,29 @@ function writeConcatListFile(listPath, partPaths) {
 function concatVideos(partPaths, outputPath, options = {}) {
   const listPath = options.concatListPath || path.join(options.tempDir || os.tmpdir(), `concat-list-${process.pid}.txt`);
   writeConcatListFile(listPath, partPaths);
-  const outputArgs = options.stripAudio
-    ? ['-c:v', 'copy', '-an']
-    : ['-c', 'copy'];
+  const shouldReencodeVideo = options.reencodeVideo === true;
+  let outputArgs;
+
+  if (shouldReencodeVideo) {
+    outputArgs = [
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart'
+    ];
+
+    if (options.stripAudio) {
+      outputArgs.push('-an');
+    } else {
+      outputArgs.push('-c:a', 'aac');
+    }
+  } else {
+    outputArgs = options.stripAudio
+      ? ['-c:v', 'copy', '-an']
+      : ['-c', 'copy'];
+  }
 
   try {
     runFfmpeg([
@@ -379,6 +420,15 @@ function validateOutputDuration(outputPath, expectedDuration, options = {}) {
   return actualDuration;
 }
 
+function computeExpectedConcatDuration(segmentPaths, options = {}) {
+  return segmentPaths.reduce((total, segmentPath) => total + probeVideoDuration(segmentPath, options), 0);
+}
+
+function getConcatDurationTolerance(segmentCount, options = {}) {
+  const baseTolerance = options.durationToleranceSeconds ?? DEFAULT_DURATION_TOLERANCE_SECONDS;
+  return Math.max(baseTolerance, Math.min(5, segmentCount * 0.05));
+}
+
 function generateVideoSegments(options) {
   const loggerOptions = { ...options, logger: options.logger };
   logInfo(loggerOptions, 'generateVideoSegments: start');
@@ -439,25 +489,40 @@ function concatSegmentFolder(options) {
   logInfo(loggerOptions, `concatSegmentFolder: reading ${segmentDir}`);
   const segmentPaths = discoverSourceVideos(segmentDir, loggerOptions);
   const stripAudio = options.stripAudio !== false;
+  const expectedDuration = computeExpectedConcatDuration(segmentPaths, options);
+  const concatTolerance = getConcatDurationTolerance(segmentPaths.length, options);
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   logInfo(loggerOptions, `concatSegmentFolder: concatenating ${segmentPaths.length} segments into ${outputPath}`);
-  concatVideos(segmentPaths, outputPath, { ...loggerOptions, stripAudio });
+  concatVideos(segmentPaths, outputPath, {
+    ...loggerOptions,
+    stripAudio,
+    reencodeVideo: true
+  });
 
   const actualDuration = probeVideoDuration(outputPath, options);
+  if (Math.abs(actualDuration - expectedDuration) > concatTolerance) {
+    throw new VideoSegmentGenerationError(
+      `Final video duration mismatch for ${outputPath}: expected ${formatSeconds(expectedDuration)}s from ${segmentPaths.length} segments, got ${formatSeconds(actualDuration)}s.`
+    );
+  }
   logInfo(loggerOptions, `concatSegmentFolder: complete, final duration ${formatSeconds(actualDuration)}s`);
 
   return {
     segmentPaths,
     outputPath,
-    actualDuration
+    actualDuration,
+    expectedDuration
   };
 }
 
 module.exports = {
   DEFAULT_DURATION_TOLERANCE_SECONDS,
+  DEFAULT_SEGMENT_BUFFER_SECONDS,
   SUPPORTED_VIDEO_EXTENSIONS,
   VideoSegmentGenerationError,
+  roundSegmentDuration,
+  getBufferedSegmentDuration,
   parseSegmentSrtText,
   parseSegmentSrtFile,
   discoverSourceVideos,
@@ -471,6 +536,8 @@ module.exports = {
   concatVideos,
   executeSegmentPlan,
   validateOutputDuration,
+  computeExpectedConcatDuration,
+  getConcatDurationTolerance,
   generateVideoSegments,
   concatSegmentFolder
 };

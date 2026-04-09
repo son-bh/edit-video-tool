@@ -58,9 +58,12 @@ The web UI lets the user:
 2. Optional: upload `script.whisper.srt` with `script.json` to skip audio transcription
 3. Start subtitle generation and track progress
 4. Download `script.whisper.srt` and `script.srt`
-5. Upload multiple source videos for the same job
-6. Start segment generation and final concat
-7. Download a segment zip and the final video
+5. Upload `script.srt` again after a page reload if the earlier subtitle job is no longer in browser state
+6. Upload multiple source videos for the same job
+7. Start segment generation and final concat
+8. Download a segment zip and the final video
+
+The page also provides clear buttons for the selected upload files before submission.
 
 Run the full flow in one command:
 
@@ -114,7 +117,7 @@ npm run generate-video-segments -- --srt assets/script/script.srt --videos asset
 The command:
 
 1. Parses each SRT cue start/end timestamp.
-2. Calculates cue duration from `end - start`.
+2. Calculates cue duration from `end - start`, adds a `0.5s` buffer for each segment, then rounds to whole seconds. Any fractional milliseconds round up to the next full second.
 3. Reads source videos from the video folder in deterministic filename order.
 4. Maps cue 1 to video 1, cue 2 to video 2, and so on.
 5. Uses `ffmpeg` to create `segment-001.mp4`, `segment-002.mp4`, etc.
@@ -161,9 +164,9 @@ This command:
 
 1. Reads all segment videos from the segment folder in deterministic filename order.
 2. Builds an ffmpeg concat list.
-3. Concatenates the segment files into one final output video.
+3. Concatenates the segment files into one final output video and re-encodes the final stream for more reliable timing across many segments.
 4. Removes the audio track from the final output video.
-5. Probes the output duration to confirm the final file was created successfully.
+5. Probes the segment durations and the final output duration, then fails if the final file duration does not match the segment total within tolerance.
 
 Use a custom `ffmpeg` or `ffprobe` path if needed:
 

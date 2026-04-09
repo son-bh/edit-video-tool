@@ -6,12 +6,17 @@ const test = require('node:test');
 
 const {
   concatSegmentFolder,
+  DEFAULT_SEGMENT_BUFFER_SECONDS,
   VideoSegmentGenerationError,
+  computeExpectedConcatDuration,
   createSegmentPlan,
   discoverSourceVideos,
   executeSegmentPlan,
   generateVideoSegments,
+  getBufferedSegmentDuration,
+  getConcatDurationTolerance,
   parseSegmentSrtText,
+  roundSegmentDuration,
   selectVideoForCue
 } = require('../src/video-segment-generation');
 
@@ -47,9 +52,25 @@ test('parseSegmentSrtText parses cue durations', () => {
 
   assert.equal(cues.length, 3);
   assert.equal(cues[0].index, 1);
-  assert.equal(cues[0].duration, 10);
-  assert.equal(cues[1].duration, 7.5);
-  assert.equal(cues[2].duration, 13);
+  assert.equal(cues[0].duration, 11);
+  assert.equal(cues[1].duration, 8);
+  assert.equal(cues[2].duration, 14);
+});
+
+test('roundSegmentDuration rounds up whenever milliseconds are present', () => {
+  assert.equal(roundSegmentDuration(10), 10);
+  assert.equal(roundSegmentDuration(7.1), 8);
+  assert.equal(roundSegmentDuration(7.5), 8);
+  assert.equal(roundSegmentDuration(8.002), 9);
+  assert.equal(roundSegmentDuration(0.2), 1);
+});
+
+test('getBufferedSegmentDuration adds a 0.5 second default buffer before rounding', () => {
+  assert.equal(DEFAULT_SEGMENT_BUFFER_SECONDS, 0.5);
+  assert.equal(getBufferedSegmentDuration(10), 11);
+  assert.equal(getBufferedSegmentDuration(7.1), 8);
+  assert.equal(getBufferedSegmentDuration(13), 14);
+  assert.equal(getBufferedSegmentDuration(10, { segmentBufferSeconds: 0 }), 10);
 });
 
 test('parseSegmentSrtText rejects malformed and empty SRT input', () => {
@@ -90,10 +111,10 @@ test('createSegmentPlan handles equal, shorter, longer, and multi-repeat duratio
   assert.equal(createSegmentPlan({ index: 1, duration: 10 }, 'video.mp4', 10).operation, 'copy');
 
   assert.deepEqual(
-    createSegmentPlan({ index: 2, duration: 7.5 }, 'video.mp4', 10).parts,
-    [{ kind: 'cut', duration: 7.5 }]
+    createSegmentPlan({ index: 2, duration: 8 }, 'video.mp4', 10).parts,
+    [{ kind: 'cut', duration: 8 }]
   );
-  assert.equal(createSegmentPlan({ index: 2, duration: 7.5 }, 'video.mp4', 10).operation, 'cut');
+  assert.equal(createSegmentPlan({ index: 2, duration: 8 }, 'video.mp4', 10).operation, 'cut');
 
   assert.deepEqual(
     createSegmentPlan({ index: 3, duration: 13 }, 'video.mp4', 10).parts,
@@ -162,15 +183,15 @@ test('generateVideoSegments creates one planned output per SRT cue', () => withT
     },
     durationProbe: (filePath) => {
       if (path.basename(filePath) === 'segment-001.mp4') {
-        return 10;
+        return 11;
       }
 
       if (path.basename(filePath) === 'segment-002.mp4') {
-        return 7.5;
+        return 8;
       }
 
       if (path.basename(filePath) === 'segment-003.mp4') {
-        return 13;
+        return 14;
       }
 
       return 10;
@@ -178,7 +199,7 @@ test('generateVideoSegments creates one planned output per SRT cue', () => withT
   });
 
   assert.equal(result.outputs.length, 3);
-  assert.equal(result.outputs[0].plan.operation, 'copy');
+  assert.equal(result.outputs[0].plan.operation, 'concat');
   assert.equal(result.outputs[1].plan.operation, 'cut');
   assert.equal(result.outputs[2].plan.operation, 'concat');
   assert.ok(commands.length >= 1);
@@ -204,7 +225,7 @@ test('concatSegmentFolder concatenates segment videos in deterministic order', (
     },
     durationProbe: (filePath) => {
       if (filePath === outputPath) {
-        return 42;
+        return 30;
       }
 
       return 10;
@@ -217,9 +238,58 @@ test('concatSegmentFolder concatenates segment videos in deterministic order', (
     ['segment-001.mp4', 'segment-002.mp4', 'segment-010.mp4']
   );
   assert.equal(result.outputPath, outputPath);
-  assert.equal(result.actualDuration, 42);
+  assert.equal(result.actualDuration, 30);
+  assert.equal(result.expectedDuration, 30);
   assert.equal(commands.length, 1);
   assert.ok(commands[0].args.includes('concat'));
   assert.ok(commands[0].args.includes('-an'));
-  assert.ok(commands[0].args.includes('-c:v'));
+  assert.ok(commands[0].args.includes('libx264'));
+  assert.ok(commands[0].args.includes('-pix_fmt'));
+}));
+
+test('computeExpectedConcatDuration sums segment durations', () => {
+  const result = computeExpectedConcatDuration(['one.mp4', 'two.mp4', 'three.mp4'], {
+    durationProbe: (filePath) => {
+      if (filePath === 'one.mp4') {
+        return 3.5;
+      }
+
+      if (filePath === 'two.mp4') {
+        return 4;
+      }
+
+      return 5.25;
+    }
+  });
+
+  assert.equal(result, 12.75);
+});
+
+test('getConcatDurationTolerance scales for larger concat jobs', () => {
+  assert.equal(getConcatDurationTolerance(1), 0.25);
+  assert.equal(getConcatDurationTolerance(20), 1);
+  assert.equal(getConcatDurationTolerance(200), 5);
+});
+
+test('concatSegmentFolder rejects final duration mismatches', () => withTempDir((dir) => {
+  const segmentDir = path.join(dir, 'segments');
+  const outputPath = path.join(dir, 'final', 'final.mp4');
+
+  fs.mkdirSync(segmentDir);
+  fs.writeFileSync(path.join(segmentDir, 'segment-001.mp4'), '');
+  fs.writeFileSync(path.join(segmentDir, 'segment-002.mp4'), '');
+
+  assert.throws(() => concatSegmentFolder({
+    segmentDir,
+    outputPath,
+    ffmpegPath: 'ffmpeg',
+    commandRunner: () => '',
+    durationProbe: (filePath) => {
+      if (filePath === outputPath) {
+        return 9;
+      }
+
+      return 6;
+    }
+  }), /Final video duration mismatch/);
 }));

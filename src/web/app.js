@@ -36,6 +36,25 @@ function unlinkIfPresent(filePath) {
   }
 }
 
+function createVideoJob(jobStore, workspaceRoot) {
+  const job = jobStore.create();
+  const workspace = createJobWorkspace(job.id, workspaceRoot, {
+    createdAt: job.createdAt
+  });
+  jobStore.update(job.id, {
+    folderName: workspace.folderName,
+    workspace
+  });
+  return jobStore.get(job.id);
+}
+
+function moveVideoFiles(files, videosDir) {
+  files.forEach((file, index) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    moveFile(file.path, path.join(videosDir, `video-${String(index + 1).padStart(3, '0')}${extension}`));
+  });
+}
+
 function serializeJob(job) {
   if (!job) {
     return null;
@@ -218,10 +237,7 @@ function createApp(options = {}) {
       return;
     }
 
-    files.forEach((file, index) => {
-      const extension = path.extname(file.originalname).toLowerCase();
-      moveFile(file.path, path.join(job.workspace.videos, `video-${String(index + 1).padStart(3, '0')}${extension}`));
-    });
+    moveVideoFiles(files, job.workspace.videos);
 
     jobStore.markRunning(job.id, {
       phase: 'video',
@@ -234,6 +250,75 @@ function createApp(options = {}) {
       workspace: job.workspace,
       videosDir: job.workspace.videos,
       scriptSrtPath: job.outputs.scriptSrt,
+      ffmpegPath: process.env.FFMPEG_PATH,
+      ffprobePath: process.env.FFPROBE_PATH,
+      loopVideos: true,
+      durationToleranceSeconds: 0.25
+    });
+
+    response.status(202).json({
+      job: serializeJob(jobStore.get(job.id))
+    });
+  });
+
+  app.post('/api/jobs/videos', upload.fields([
+    { name: 'scriptSrt', maxCount: 1 },
+    { name: 'videos', maxCount: 100 }
+  ]), (request, response) => {
+    const scriptSrtFile = request.files?.scriptSrt?.[0];
+    const files = request.files?.videos || [];
+
+    if (!scriptSrtFile) {
+      files.forEach((file) => unlinkIfPresent(file.path));
+      response.status(400).json({ error: 'scriptSrt is required when starting video generation without an existing subtitle job.' });
+      return;
+    }
+
+    if (path.extname(scriptSrtFile.originalname).toLowerCase() !== '.srt') {
+      unlinkIfPresent(scriptSrtFile.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
+      response.status(400).json({ error: 'scriptSrt must be an .srt file.' });
+      return;
+    }
+
+    if (files.length === 0) {
+      unlinkIfPresent(scriptSrtFile.path);
+      response.status(400).json({ error: 'At least one video file is required.' });
+      return;
+    }
+
+    const invalidFile = files.find((file) => !SUPPORTED_VIDEO_EXTENSIONS.has(path.extname(file.originalname).toLowerCase()));
+    if (invalidFile) {
+      unlinkIfPresent(scriptSrtFile.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
+      response.status(400).json({ error: 'All uploaded files must be supported video types.' });
+      return;
+    }
+
+    const job = createVideoJob(jobStore, workspaceRoot);
+    const scriptSrtPath = moveFile(scriptSrtFile.path, path.join(job.workspace.inputs, 'script.srt'));
+    moveVideoFiles(files, job.workspace.videos);
+
+    jobStore.markCompleted(job.id, 'subtitle', {
+      scriptSrt: scriptSrtPath
+    }, {
+      phase: 'subtitle',
+      stage: 'completed',
+      percent: 100,
+      message: 'Uploaded script.srt ready for video generation'
+    });
+
+    jobStore.markRunning(job.id, {
+      phase: 'video',
+      stage: 'queued',
+      percent: 45,
+      message: 'Video generation queued'
+    });
+
+    jobRunner.startVideoJob(jobStore.get(job.id), {
+      workspace: job.workspace,
+      videosDir: job.workspace.videos,
+      scriptSrtPath,
       ffmpegPath: process.env.FFMPEG_PATH,
       ffprobePath: process.env.FFPROBE_PATH,
       loopVideos: true,

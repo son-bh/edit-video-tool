@@ -273,6 +273,15 @@ a {
   line-height: 1.5;
 }
 
+.input-clear-button {
+  min-height: 34px;
+  width: fit-content;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
 input[type="file"] {
   width: 100%;
   color: var(--text);
@@ -329,7 +338,8 @@ button[disabled] {
 }
 
 .progress-card {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   padding: 20px;
   border: 1px solid var(--border);

@@ -144,15 +144,17 @@ The web UI flow:
 2. Optional: upload an existing `script.whisper.srt` file to skip audio transcription and map directly to `script.json`.
 3. Start subtitle generation and wait for `script.srt` creation.
 4. Download `script.whisper.srt` and `script.srt` after the job completes.
-5. Upload source videos for the same job.
-6. Start video generation.
-7. Download the segment zip and final video after completion.
+5. Either keep the current subtitle job active or upload an existing `script.srt` again after a page reload.
+6. Upload source videos.
+7. Start video generation.
+8. Download the segment zip and final video after completion.
 
 Web UI notes:
 
 - Long-running media work runs in background worker processes so the server can keep serving status requests.
 - Status is polled from the browser and shows stage, percent, and message.
 - Uploaded and generated files are stored under `WEB_UI_WORKSPACE_ROOT`.
+- File inputs can be cleared directly in the page before submitting.
 
 ### 1. Generate Subtitles
 
@@ -207,7 +209,7 @@ npm run generate-video-segments -- --srt assets/script/script.srt --videos asset
 The segment workflow:
 
 1. Parse each SRT cue start and end time.
-2. Compute cue duration.
+2. Compute cue duration, add a `0.5s` segment buffer, then round it to whole seconds. Any fractional milliseconds round up to the next full second.
 3. Select the source video by cue order.
 4. Create an output segment that matches the cue duration.
 
@@ -242,7 +244,7 @@ After segments are generated, concatenate them into one final video:
 npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4
 ```
 
-This reads segment files in deterministic filename order, concatenates them with `ffmpeg`, and removes the audio track from the final output video.
+This reads segment files in deterministic filename order, re-encodes the final concat with `ffmpeg`, removes the audio track from the final output video, and validates that the final duration matches the sum of the segment durations within tolerance.
 
 ## Processing Rules
 
