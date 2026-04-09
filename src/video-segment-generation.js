@@ -310,6 +310,9 @@ function writeConcatListFile(listPath, partPaths) {
 function concatVideos(partPaths, outputPath, options = {}) {
   const listPath = options.concatListPath || path.join(options.tempDir || os.tmpdir(), `concat-list-${process.pid}.txt`);
   writeConcatListFile(listPath, partPaths);
+  const outputArgs = options.stripAudio
+    ? ['-c:v', 'copy', '-an']
+    : ['-c', 'copy'];
 
   try {
     runFfmpeg([
@@ -323,8 +326,7 @@ function concatVideos(partPaths, outputPath, options = {}) {
       '0',
       '-i',
       listPath,
-      '-c',
-      'copy',
+      ...outputArgs,
       outputPath
     ], options);
   } finally {
@@ -436,10 +438,11 @@ function concatSegmentFolder(options) {
 
   logInfo(loggerOptions, `concatSegmentFolder: reading ${segmentDir}`);
   const segmentPaths = discoverSourceVideos(segmentDir, loggerOptions);
+  const stripAudio = options.stripAudio !== false;
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   logInfo(loggerOptions, `concatSegmentFolder: concatenating ${segmentPaths.length} segments into ${outputPath}`);
-  concatVideos(segmentPaths, outputPath, loggerOptions);
+  concatVideos(segmentPaths, outputPath, { ...loggerOptions, stripAudio });
 
   const actualDuration = probeVideoDuration(outputPath, options);
   logInfo(loggerOptions, `concatSegmentFolder: complete, final duration ${formatSeconds(actualDuration)}s`);

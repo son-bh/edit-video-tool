@@ -160,7 +160,8 @@ This command:
 1. Reads all segment videos from the segment folder in deterministic filename order.
 2. Builds an ffmpeg concat list.
 3. Concatenates the segment files into one final output video.
-4. Probes the output duration to confirm the final file was created successfully.
+4. Removes the audio track from the final output video.
+5. Probes the output duration to confirm the final file was created successfully.
 
 Use a custom `ffmpeg` or `ffprobe` path if needed:
 

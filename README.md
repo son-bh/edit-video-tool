@@ -59,6 +59,8 @@ What setup does:
 - creates or updates `.env`
 - writes detected executable paths into `.env`
 - runs `npm install`
+- starts the web UI server
+- opens the configured web UI URL in the default browser
 
 If one of the required tools is missing, setup stops with a clear error so the machine can be fixed before use.
 
@@ -232,7 +234,7 @@ After segments are generated, concatenate them into one final video:
 npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4
 ```
 
-This reads segment files in deterministic filename order and concatenates them with `ffmpeg`.
+This reads segment files in deterministic filename order, concatenates them with `ffmpeg`, and removes the audio track from the final output video.
 
 ## Processing Rules
 

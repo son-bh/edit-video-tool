@@ -78,6 +78,29 @@ function Read-EnvFile {
   return $map
 }
 
+function Start-WebUi {
+  param(
+    [string]$RepoRoot,
+    [string]$NpmPath,
+    [string]$WebHost,
+    [string]$WebPort
+  )
+
+  Write-Step "Starting web UI server"
+  $startInfo = @{
+    FilePath = $NpmPath
+    ArgumentList = @('run', 'web-ui')
+    WorkingDirectory = $RepoRoot
+    WindowStyle = 'Normal'
+  }
+  Start-Process @startInfo | Out-Null
+
+  $url = "http://${WebHost}:${WebPort}"
+  Start-Sleep -Seconds 2
+  Write-Step "Opening $url"
+  Start-Process $url | Out-Null
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $repoRoot
 
@@ -178,6 +201,5 @@ Write-Host "  ffmpeg:  $ffmpegPath"
 Write-Host "  ffprobe: $ffprobePath"
 Write-Host "  whisper: $whisperPath"
 Write-Host ""
-Write-Host "Next commands:"
-Write-Host "  npm run web-ui"
-Write-Host "  npm run generate-subtitles -- --help"
+Write-Host "Starting web UI automatically..."
+Start-WebUi -RepoRoot $repoRoot -NpmPath $npmPath -WebHost $envMap['WEB_UI_HOST'] -WebPort $envMap['WEB_UI_PORT']

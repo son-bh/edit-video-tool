@@ -220,4 +220,6 @@ test('concatSegmentFolder concatenates segment videos in deterministic order', (
   assert.equal(result.actualDuration, 42);
   assert.equal(commands.length, 1);
   assert.ok(commands[0].args.includes('concat'));
+  assert.ok(commands[0].args.includes('-an'));
+  assert.ok(commands[0].args.includes('-c:v'));
 }));
