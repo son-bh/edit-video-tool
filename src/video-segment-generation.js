@@ -187,10 +187,10 @@ function getFfprobeCommand(options = {}) {
   const parsed = path.parse(ffmpegCommand);
 
   if (!parsed.dir) {
-    return process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+    return 'ffprobe';
   }
 
-  return path.join(parsed.dir, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+  return path.join(parsed.dir, 'ffprobe');
 }
 
 function runCommand(command, args, options = {}) {

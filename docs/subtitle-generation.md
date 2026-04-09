@@ -17,15 +17,17 @@ The JSON file is the source of truth for subtitle text. Whisper is used to creat
 Example `.env`:
 
 ```dotenv
-FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe
-FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
-WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
+FFMPEG_PATH=ffmpeg
+FFPROBE_PATH=ffprobe
+WHISPER_COMMAND_PATH=whisper
 WEB_UI_HOST=127.0.0.1
 WEB_UI_PORT=3000
 WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
 ```
 
 Override tool paths with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`.
+
+For cross-platform setup, prefer command names on `PATH` instead of Windows-only absolute executable paths.
 
 ## Flow
 
@@ -92,13 +94,13 @@ npm run generate-subtitles -- --json assets/script/script.json --audio assets/au
 Use a custom `ffmpeg` path:
 
 ```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --ffmpeg C:\path\to\ffmpeg.exe
+npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --ffmpeg /path/to/ffmpeg
 ```
 
 Use a custom Python Whisper command:
 
 ```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --whisper-command C:\path\to\whisper.exe
+npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --whisper-command /path/to/whisper
 ```
 
 ## Video Segment Generation
@@ -144,7 +146,7 @@ npm run generate-video-segments -- --srt assets/script/script.srt --videos asset
 Use a custom `ffprobe` path:
 
 ```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --ffprobe C:\path\to\ffprobe.exe
+npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --ffprobe /path/to/ffprobe
 ```
 
 ## Final Video Concat
@@ -166,7 +168,7 @@ This command:
 Use a custom `ffmpeg` or `ffprobe` path if needed:
 
 ```bash
-npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --ffmpeg C:\ffmpeg\bin\ffmpeg.exe --ffprobe C:\ffmpeg\bin\ffprobe.exe
+npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --ffmpeg /path/to/ffmpeg --ffprobe /path/to/ffprobe
 ```
 
 ## JSON Format

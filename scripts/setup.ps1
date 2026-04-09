@@ -146,10 +146,6 @@ if (-not $ffprobePath) {
   throw "ffprobe was not found. Install ffprobe or set FFPROBE_PATH before running setup."
 }
 
-if (-not $whisperPath) {
-  throw "Whisper CLI was not found. Install Python Whisper or set WHISPER_COMMAND_PATH before running setup."
-}
-
 $envMap = [ordered]@{}
 
 if (Test-Path -LiteralPath $envPath) {
@@ -194,12 +190,22 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Step "Setup complete"
 Write-Host ""
+$whisperDisplay = $whisperPath
+if (-not $whisperDisplay) {
+  $whisperDisplay = 'not found (optional)'
+}
 Write-Host "Detected tools:"
 Write-Host "  node:    $nodePath"
 Write-Host "  npm:     $npmPath"
 Write-Host "  ffmpeg:  $ffmpegPath"
 Write-Host "  ffprobe: $ffprobePath"
-Write-Host "  whisper: $whisperPath"
+Write-Host "  whisper: $whisperDisplay"
 Write-Host ""
+if (-not $whisperPath) {
+  Write-Host "Whisper was not found. Subtitle generation from uploaded media will need either:"
+  Write-Host "  - an uploaded script.whisper.srt file, or"
+  Write-Host "  - Whisper installed and available later via WHISPER_COMMAND_PATH or PATH"
+  Write-Host ""
+}
 Write-Host "Starting web UI automatically..."
 Start-WebUi -RepoRoot $repoRoot -NpmPath $npmPath -WebHost $envMap['WEB_UI_HOST'] -WebPort $envMap['WEB_UI_PORT']

@@ -18,7 +18,7 @@ The final subtitle text always comes from JSON. Whisper is used only to derive t
 - Node.js `20+`
 - `ffmpeg`
 - `ffprobe`
-- Python Whisper CLI
+- Python Whisper CLI for media transcription, optional if you upload `script.whisper.srt`
 
 Tool path configuration:
 
@@ -29,9 +29,9 @@ Tool path configuration:
 Create a `.env` file in the repo root:
 
 ```dotenv
-FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe
-FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
-WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
+FFMPEG_PATH=ffmpeg
+FFPROBE_PATH=ffprobe
+WHISPER_COMMAND_PATH=whisper
 WEB_UI_HOST=127.0.0.1
 WEB_UI_PORT=3000
 WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
@@ -45,6 +45,8 @@ Override these with:
 
 CLI flags still win over `.env`.
 
+If the tools are already available on `PATH`, prefer command names like `ffmpeg`, `ffprobe`, and `whisper`. That keeps the same config portable across Windows, Linux, and macOS.
+
 ## One-Time Setup
 
 If you share this project as a zip file, do not include `node_modules`, Python environments, or Whisper model/runtime folders. After extracting the zip on Windows, run:
@@ -55,14 +57,15 @@ If you share this project as a zip file, do not include `node_modules`, Python e
 
 What setup does:
 
-- checks `node`, `npm`, `python`, `ffmpeg`, `ffprobe`, and `whisper`
+- checks `node`, `npm`, `ffmpeg`, and `ffprobe`
+- detects `whisper` if available
 - creates or updates `.env`
 - writes detected executable paths into `.env`
 - runs `npm install`
 - starts the web UI server
 - opens the configured web UI URL in the default browser
 
-If one of the required tools is missing, setup stops with a clear error so the machine can be fixed before use.
+If one of the required tools is missing, setup stops with a clear error so the machine can be fixed before use. Whisper is optional during setup because the web UI can also accept an uploaded `script.whisper.srt` file.
 
 ## Install
 

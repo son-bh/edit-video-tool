@@ -4,8 +4,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const DEFAULT_MAX_ITEMS = 100;
-const DEFAULT_FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-const DEFAULT_WHISPER_COMMAND = process.platform === 'win32' ? 'whisper.exe' : 'whisper';
+const DEFAULT_FFMPEG_COMMAND = 'ffmpeg';
+const DEFAULT_WHISPER_COMMAND = 'whisper';
 
 function logStep(options = {}, message) {
   if (options.logger && typeof options.logger.info === 'function') {
