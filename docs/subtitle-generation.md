@@ -117,16 +117,17 @@ npm run generate-video-segments -- --srt assets/script/script.srt --videos asset
 The command:
 
 1. Parses each SRT cue start/end timestamp.
-2. Calculates cue duration from `end - start`, adds a `0.5s` buffer for each segment, then rounds to whole seconds. Any fractional milliseconds round up to the next full second.
+2. Preserves the subtitle timeline, including gaps between cues, so the final concatenated video can reach the last `script.srt` end time.
 3. Reads source videos from the video folder in deterministic filename order.
 4. Maps cue 1 to video 1, cue 2 to video 2, and so on.
 5. Uses `ffmpeg` to create `segment-001.mp4`, `segment-002.mp4`, etc.
 
 Duration behavior:
 
-- If cue duration equals the selected source video duration within tolerance, the video is copied with `ffmpeg`.
-- If cue duration is shorter than the source video duration, the source video is cut from `0` to the cue duration.
-- If cue duration is longer than the source video duration, the source video is repeated and concatenated. For example, a 24-second cue with a 10-second source video becomes `10 + 10 + 4`.
+- Each generated segment uses the cue's timeline span, not only the visible subtitle text duration. For non-last cues, that means the segment runs until the next cue start so subtitle gaps are preserved.
+- If the target segment duration equals the selected source video duration within tolerance, the video is copied with `ffmpeg`.
+- If the target segment duration is shorter than the source video duration, the source video is cut from `0` to the target segment duration.
+- If the target segment duration is longer than the source video duration, the source video is repeated and concatenated. For example, a 24-second timeline span with a 10-second source video becomes `10 + 10 + 4`.
 
 By default, generation fails if there are more SRT cues than source videos:
 

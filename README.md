@@ -209,15 +209,16 @@ npm run generate-video-segments -- --srt assets/script/script.srt --videos asset
 The segment workflow:
 
 1. Parse each SRT cue start and end time.
-2. Compute cue duration, add a `0.5s` segment buffer, then round it to whole seconds. Any fractional milliseconds round up to the next full second.
+2. Preserve the subtitle timeline, including gaps between cues, so the final concatenated video can reach the last `script.srt` end time.
 3. Select the source video by cue order.
 4. Create an output segment that matches the cue duration.
 
 Duration behavior:
 
-- If the cue duration matches the source video duration within tolerance, copy the source video.
-- If the cue duration is shorter, cut the source video from `0` to the cue duration.
-- If the cue duration is longer, repeat and concatenate the source video until the target duration is reached.
+- Each generated segment uses the cue's timeline span, not only the visible subtitle text duration. For non-last cues, that means the segment runs until the next cue start so subtitle gaps are preserved.
+- If the target segment duration matches the source video duration within tolerance, copy the source video.
+- If the target segment duration is shorter, cut the source video from `0` to the target duration.
+- If the target segment duration is longer, repeat and concatenate the source video until the target duration is reached.
 
 Example:
 
@@ -244,7 +245,7 @@ After segments are generated, concatenate them into one final video:
 npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4
 ```
 
-This reads segment files in deterministic filename order, re-encodes the final concat with `ffmpeg`, removes the audio track from the final output video, and validates that the final duration matches the sum of the segment durations within tolerance.
+This reads segment files in deterministic filename order, re-encodes the final concat with `ffmpeg`, removes the audio track from the final output video, and validates that the final duration matches the subtitle timeline represented by the generated segments within tolerance.
 
 ## Processing Rules
 

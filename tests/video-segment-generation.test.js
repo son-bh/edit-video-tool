@@ -5,18 +5,16 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  buildSegmentTimeline,
   concatSegmentFolder,
-  DEFAULT_SEGMENT_BUFFER_SECONDS,
   VideoSegmentGenerationError,
   computeExpectedConcatDuration,
   createSegmentPlan,
   discoverSourceVideos,
   executeSegmentPlan,
   generateVideoSegments,
-  getBufferedSegmentDuration,
   getConcatDurationTolerance,
   parseSegmentSrtText,
-  roundSegmentDuration,
   selectVideoForCue
 } = require('../src/video-segment-generation');
 
@@ -47,30 +45,44 @@ function sampleSrt() {
   ].join('\n');
 }
 
+function sampleSrtWithGaps() {
+  return [
+    '1',
+    '00:00:01,200 --> 00:00:04,000',
+    'First cue',
+    '',
+    '2',
+    '00:00:05,500 --> 00:00:08,000',
+    'Second cue',
+    '',
+    '3',
+    '00:00:09,250 --> 00:00:12,750',
+    'Third cue',
+    ''
+  ].join('\n');
+}
+
 test('parseSegmentSrtText parses cue durations', () => {
   const cues = parseSegmentSrtText(sampleSrt());
 
   assert.equal(cues.length, 3);
   assert.equal(cues[0].index, 1);
-  assert.equal(cues[0].duration, 11);
-  assert.equal(cues[1].duration, 8);
-  assert.equal(cues[2].duration, 14);
+  assert.equal(cues[0].duration, 10);
+  assert.equal(cues[1].duration, 7.5);
+  assert.equal(cues[2].duration, 13);
 });
 
-test('roundSegmentDuration rounds up whenever milliseconds are present', () => {
-  assert.equal(roundSegmentDuration(10), 10);
-  assert.equal(roundSegmentDuration(7.1), 8);
-  assert.equal(roundSegmentDuration(7.5), 8);
-  assert.equal(roundSegmentDuration(8.002), 9);
-  assert.equal(roundSegmentDuration(0.2), 1);
-});
+test('buildSegmentTimeline preserves inter-cue gaps so final timeline matches SRT end time', () => {
+  const cues = buildSegmentTimeline(parseSegmentSrtText(sampleSrtWithGaps()));
 
-test('getBufferedSegmentDuration adds a 0.5 second default buffer before rounding', () => {
-  assert.equal(DEFAULT_SEGMENT_BUFFER_SECONDS, 0.5);
-  assert.equal(getBufferedSegmentDuration(10), 11);
-  assert.equal(getBufferedSegmentDuration(7.1), 8);
-  assert.equal(getBufferedSegmentDuration(13), 14);
-  assert.equal(getBufferedSegmentDuration(10, { segmentBufferSeconds: 0 }), 10);
+  assert.equal(cues.length, 3);
+  assert.equal(cues[0].segmentDuration, 5.5);
+  assert.equal(cues[1].segmentDuration, 3.75);
+  assert.equal(cues[2].segmentDuration, 3.5);
+
+  const totalSegmentDuration = cues.reduce((sum, cue) => sum + cue.segmentDuration, 0);
+  assert.equal(totalSegmentDuration, 12.75);
+  assert.equal(cues[cues.length - 1].end, 12.75);
 });
 
 test('parseSegmentSrtText rejects malformed and empty SRT input', () => {
@@ -128,6 +140,17 @@ test('createSegmentPlan handles equal, shorter, longer, and multi-repeat duratio
   );
 });
 
+test('createSegmentPlan uses segmentDuration when timeline gaps are preserved', () => {
+  const plan = createSegmentPlan(
+    { index: 1, duration: 2.8, segmentDuration: 5.5 },
+    'video.mp4',
+    10
+  );
+
+  assert.equal(plan.operation, 'cut');
+  assert.deepEqual(plan.parts, [{ kind: 'cut', duration: 5.5 }]);
+});
+
 test('executeSegmentPlan builds ffmpeg cut and concat commands', () => withTempDir((dir) => {
   const commands = [];
   const commandRunner = (command, args) => {
@@ -183,15 +206,15 @@ test('generateVideoSegments creates one planned output per SRT cue', () => withT
     },
     durationProbe: (filePath) => {
       if (path.basename(filePath) === 'segment-001.mp4') {
-        return 11;
+        return 10;
       }
 
       if (path.basename(filePath) === 'segment-002.mp4') {
-        return 8;
+        return 7.5;
       }
 
       if (path.basename(filePath) === 'segment-003.mp4') {
-        return 14;
+        return 13;
       }
 
       return 10;
@@ -199,7 +222,7 @@ test('generateVideoSegments creates one planned output per SRT cue', () => withT
   });
 
   assert.equal(result.outputs.length, 3);
-  assert.equal(result.outputs[0].plan.operation, 'concat');
+  assert.equal(result.outputs[0].plan.operation, 'copy');
   assert.equal(result.outputs[1].plan.operation, 'cut');
   assert.equal(result.outputs[2].plan.operation, 'concat');
   assert.ok(commands.length >= 1);

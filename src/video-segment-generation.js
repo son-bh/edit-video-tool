@@ -13,7 +13,6 @@ const {
 } = require('./subtitle-generation');
 
 const DEFAULT_DURATION_TOLERANCE_SECONDS = 0.25;
-const DEFAULT_SEGMENT_BUFFER_SECONDS = 0.5;
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([
   '.mp4',
   '.mov',
@@ -33,26 +32,6 @@ function logInfo(options = {}, message) {
   if (options.logger && typeof options.logger.info === 'function') {
     options.logger.info(message);
   }
-}
-
-function roundSegmentDuration(seconds) {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return seconds;
-  }
-
-  const wholeSeconds = Math.floor(seconds);
-  const milliseconds = Math.round((seconds - wholeSeconds) * 1000);
-
-  if (milliseconds > 0) {
-    return wholeSeconds + 1;
-  }
-
-  return Math.max(wholeSeconds, 1);
-}
-
-function getBufferedSegmentDuration(seconds, options = {}) {
-  const bufferSeconds = options.segmentBufferSeconds ?? DEFAULT_SEGMENT_BUFFER_SECONDS;
-  return roundSegmentDuration(seconds + bufferSeconds);
 }
 
 function parseSegmentSrtText(srtText, options = {}) {
@@ -77,8 +56,33 @@ function parseSegmentSrtText(srtText, options = {}) {
       index: index + 1,
       start: cue.start,
       end: cue.end,
-      duration: getBufferedSegmentDuration(cue.end - cue.start, options),
+      duration: cue.end - cue.start,
       text: cue.text
+    };
+  });
+}
+
+function buildSegmentTimeline(cues, options = {}) {
+  const preserveTimelineGaps = options.preserveTimelineGaps !== false;
+
+  if (!preserveTimelineGaps) {
+    return cues.map((cue) => ({ ...cue, segmentDuration: cue.duration }));
+  }
+
+  return cues.map((cue, index) => {
+    const segmentStart = index === 0 ? 0 : cue.start;
+    const segmentEnd = index < cues.length - 1 ? cues[index + 1].start : cue.end;
+    const segmentDuration = segmentEnd - segmentStart;
+
+    if (!Number.isFinite(segmentDuration) || segmentDuration <= 0) {
+      throw new TimingError(`SRT cue ${cue.index} has invalid timeline spacing.`);
+    }
+
+    return {
+      ...cue,
+      segmentStart,
+      segmentEnd,
+      segmentDuration
     };
   });
 }
@@ -145,16 +149,17 @@ function selectVideoForCue(cueIndex, sourceVideos, options = {}) {
 
 function createSegmentPlan(cue, sourceVideo, sourceDuration, options = {}) {
   const tolerance = options.durationToleranceSeconds ?? DEFAULT_DURATION_TOLERANCE_SECONDS;
+  const targetDuration = cue.segmentDuration ?? cue.duration;
 
   if (!Number.isFinite(sourceDuration) || sourceDuration <= 0) {
     throw new VideoSegmentGenerationError(`Invalid source video duration for ${sourceVideo}.`);
   }
 
-  if (!Number.isFinite(cue.duration) || cue.duration <= 0) {
+  if (!Number.isFinite(targetDuration) || targetDuration <= 0) {
     throw new TimingError(`SRT cue ${cue.index} has invalid duration.`);
   }
 
-  if (Math.abs(cue.duration - sourceDuration) <= tolerance) {
+  if (Math.abs(targetDuration - sourceDuration) <= tolerance) {
     return {
       cue,
       sourceVideo,
@@ -164,18 +169,18 @@ function createSegmentPlan(cue, sourceVideo, sourceDuration, options = {}) {
     };
   }
 
-  if (cue.duration < sourceDuration) {
+  if (targetDuration < sourceDuration) {
     return {
       cue,
       sourceVideo,
       sourceDuration,
       operation: 'cut',
-      parts: [{ kind: 'cut', duration: cue.duration }]
+      parts: [{ kind: 'cut', duration: targetDuration }]
     };
   }
 
   const parts = [];
-  let remaining = cue.duration;
+  let remaining = targetDuration;
 
   while (remaining >= sourceDuration - tolerance) {
     parts.push({ kind: 'full', duration: sourceDuration });
@@ -378,9 +383,10 @@ function concatVideos(partPaths, outputPath, options = {}) {
 }
 
 function executeSegmentPlan(plan, outputPath, options = {}) {
+  const requestedDuration = plan.cue.segmentDuration ?? plan.cue.duration;
   logInfo(
     options,
-    `executeSegmentPlan: cue ${plan.cue.index}, ${plan.operation}, ${formatSrtTimestamp(plan.cue.start)} --> ${formatSrtTimestamp(plan.cue.end)}, requested ${formatSeconds(plan.cue.duration)}s`
+    `executeSegmentPlan: cue ${plan.cue.index}, ${plan.operation}, ${formatSrtTimestamp(plan.cue.start)} --> ${formatSrtTimestamp(plan.cue.end)}, requested ${formatSeconds(requestedDuration)}s`
   );
 
   if (plan.operation === 'copy') {
@@ -389,7 +395,7 @@ function executeSegmentPlan(plan, outputPath, options = {}) {
   }
 
   if (plan.operation === 'cut') {
-    cutVideo(plan.sourceVideo, outputPath, plan.cue.duration, options);
+    cutVideo(plan.sourceVideo, outputPath, requestedDuration, options);
     return;
   }
 
@@ -432,7 +438,7 @@ function getConcatDurationTolerance(segmentCount, options = {}) {
 function generateVideoSegments(options) {
   const loggerOptions = { ...options, logger: options.logger };
   logInfo(loggerOptions, 'generateVideoSegments: start');
-  const cues = parseSegmentSrtFile(options.srtPath, loggerOptions);
+  const cues = buildSegmentTimeline(parseSegmentSrtFile(options.srtPath, loggerOptions), options);
   const sourceVideos = discoverSourceVideos(options.videoDir, loggerOptions);
   const outputDir = options.outputDir;
 
@@ -450,7 +456,7 @@ function generateVideoSegments(options) {
 
     logInfo(loggerOptions, `generateVideoSegments: cue ${cue.index}/${cues.length}, source ${sourceVideo}, output ${outputPath}`);
     executeSegmentPlan(plan, outputPath, loggerOptions);
-    const actualDuration = validateOutputDuration(outputPath, cue.duration, options);
+    const actualDuration = validateOutputDuration(outputPath, cue.segmentDuration ?? cue.duration, options);
 
     return {
       cue,
@@ -518,12 +524,10 @@ function concatSegmentFolder(options) {
 
 module.exports = {
   DEFAULT_DURATION_TOLERANCE_SECONDS,
-  DEFAULT_SEGMENT_BUFFER_SECONDS,
   SUPPORTED_VIDEO_EXTENSIONS,
   VideoSegmentGenerationError,
-  roundSegmentDuration,
-  getBufferedSegmentDuration,
   parseSegmentSrtText,
+  buildSegmentTimeline,
   parseSegmentSrtFile,
   discoverSourceVideos,
   selectVideoForCue,
