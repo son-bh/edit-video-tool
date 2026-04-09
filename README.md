@@ -57,7 +57,8 @@ If you share this project as a zip file, do not include `node_modules`, Python e
 
 What setup does:
 
-- checks `node`, `npm`, `ffmpeg`, and `ffprobe`
+- installs `node` and `npm` automatically with WinGet if missing
+- installs `ffmpeg` and `ffprobe` automatically with WinGet if missing
 - detects `whisper` if available
 - creates or updates `.env`
 - writes detected executable paths into `.env`
@@ -65,7 +66,11 @@ What setup does:
 - starts the web UI server
 - opens the configured web UI URL in the default browser
 
-If one of the required tools is missing, setup stops with a clear error so the machine can be fixed before use. Whisper is optional during setup because the web UI can also accept an uploaded `script.whisper.srt` file.
+Installer notes:
+
+- The automatic install path is Windows-only and uses `winget`.
+- If `winget` is not available, setup stops with a clear error and the machine must be fixed first.
+- Whisper is optional during setup because the web UI can also accept an uploaded `script.whisper.srt` file.
 
 ## Install
 

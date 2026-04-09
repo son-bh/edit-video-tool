@@ -73,6 +73,26 @@ test('web UI base route renders the template page', async () => withTempDir(asyn
   });
 }));
 
+test('web UI exposes a downloadable script.json example', async () => withTempDir(async (workspaceRoot) => {
+  const app = createApp({
+    workspaceRoot,
+    jobStore: createJobStore(),
+    jobRunner: {
+      startSubtitleJob() {},
+      startVideoJob() {}
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(baseUrl + '/download/script-json-example');
+    const body = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') || '', /application\/json/i);
+    assert.match(body, /"text": "First subtitle text\."|\"text\": \"First subtitle text\.\"/);
+  });
+}));
+
 test('subtitle route rejects missing required files', async () => withTempDir(async (workspaceRoot) => {
   const app = createApp({
     workspaceRoot,

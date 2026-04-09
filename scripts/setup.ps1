@@ -29,6 +29,53 @@ function Find-CommandPath {
   return $null
 }
 
+function Find-NpmPath {
+  $candidates = @(
+    'npm.cmd',
+    'C:\Program Files\nodejs\npm.cmd',
+    'npm'
+  )
+
+  return Find-CommandPath -Candidates $candidates
+}
+
+function Refresh-ProcessPath {
+  $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+  $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+  $combined = @($machinePath, $userPath) -join ';'
+  if (-not [string]::IsNullOrWhiteSpace($combined)) {
+    $env:Path = $combined
+  }
+}
+
+function Install-WithWinget {
+  param(
+    [string]$PackageId,
+    [string]$DisplayName
+  )
+
+  $wingetPath = Find-CommandPath @('winget')
+  if (-not $wingetPath) {
+    throw "$DisplayName is missing and WinGet was not found. Install WinGet/App Installer or install $DisplayName manually, then run .\setup.cmd again."
+  }
+
+  Write-Step "Installing $DisplayName with WinGet ($PackageId)"
+  $arguments = @(
+    'install',
+    '--exact',
+    '--id', $PackageId,
+    '--accept-package-agreements',
+    '--accept-source-agreements',
+    '--silent'
+  )
+  & $wingetPath @arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "WinGet failed to install $DisplayName ($PackageId)."
+  }
+
+  Refresh-ProcessPath
+}
+
 function Set-EnvValue {
   param(
     [hashtable]$Map,
@@ -106,11 +153,13 @@ Set-Location -LiteralPath $repoRoot
 
 Write-Step "Repository root: $repoRoot"
 
+Refresh-ProcessPath
+
 $envPath = Join-Path $repoRoot '.env'
 $existingEnv = Read-EnvFile $envPath
 
 $nodePath = Find-CommandPath @('node')
-$npmPath = Find-CommandPath @('npm', 'npm.cmd')
+$npmPath = Find-NpmPath
 $ffmpegPath = Find-CommandPath @(
   $env:FFMPEG_PATH,
   $existingEnv['FFMPEG_PATH'],
@@ -131,19 +180,63 @@ $whisperPath = Find-CommandPath @(
 )
 
 if (-not $nodePath) {
-  throw "Node.js 20+ is required but was not found on PATH. Install Node.js, reopen PowerShell, then run .\setup.cmd again."
+  Install-WithWinget -PackageId 'OpenJS.NodeJS.LTS' -DisplayName 'Node.js LTS'
+  $nodePath = Find-CommandPath @('node', 'C:\Program Files\nodejs\node.exe')
+  $npmPath = Find-NpmPath
 }
 
 if (-not $npmPath) {
-  throw "npm was not found. Install a standard Node.js distribution, reopen PowerShell, then run .\setup.cmd again."
+  Install-WithWinget -PackageId 'OpenJS.NodeJS.LTS' -DisplayName 'Node.js LTS'
+  $nodePath = Find-CommandPath @('node', 'C:\Program Files\nodejs\node.exe')
+  $npmPath = Find-NpmPath
+}
+
+if (-not $nodePath) {
+  throw "Node.js 20+ is required but was not found after installation. Reopen PowerShell and run .\setup.cmd again."
+}
+
+if (-not $npmPath) {
+  throw "npm was not found after Node.js installation. Reopen PowerShell and run .\setup.cmd again."
 }
 
 if (-not $ffmpegPath) {
-  throw "ffmpeg was not found. Install ffmpeg or set FFMPEG_PATH before running setup."
+  Install-WithWinget -PackageId 'Gyan.FFmpeg' -DisplayName 'ffmpeg'
+  $ffmpegPath = Find-CommandPath @(
+    $env:FFMPEG_PATH,
+    $existingEnv['FFMPEG_PATH'],
+    'C:\ffmpeg\bin\ffmpeg.exe',
+    'ffmpeg'
+  )
+  $ffprobePath = Find-CommandPath @(
+    $env:FFPROBE_PATH,
+    $existingEnv['FFPROBE_PATH'],
+    'C:\ffmpeg\bin\ffprobe.exe',
+    'ffprobe'
+  )
 }
 
 if (-not $ffprobePath) {
-  throw "ffprobe was not found. Install ffprobe or set FFPROBE_PATH before running setup."
+  Install-WithWinget -PackageId 'Gyan.FFmpeg' -DisplayName 'ffmpeg'
+  $ffmpegPath = Find-CommandPath @(
+    $env:FFMPEG_PATH,
+    $existingEnv['FFMPEG_PATH'],
+    'C:\ffmpeg\bin\ffmpeg.exe',
+    'ffmpeg'
+  )
+  $ffprobePath = Find-CommandPath @(
+    $env:FFPROBE_PATH,
+    $existingEnv['FFPROBE_PATH'],
+    'C:\ffmpeg\bin\ffprobe.exe',
+    'ffprobe'
+  )
+}
+
+if (-not $ffmpegPath) {
+  throw "ffmpeg was not found after installation. Reopen PowerShell and run .\setup.cmd again."
+}
+
+if (-not $ffprobePath) {
+  throw "ffprobe was not found after ffmpeg installation. Reopen PowerShell and run .\setup.cmd again."
 }
 
 $envMap = [ordered]@{}

@@ -19,6 +19,10 @@ const SUPPORTED_MEDIA_EXTENSIONS = new Set([
   '.mkv'
 ]);
 const SUPPORTED_WHISPER_LANGUAGES = new Set(['auto', 'en', 'vi']);
+const SCRIPT_JSON_EXAMPLE = JSON.stringify([
+  { text: 'First subtitle text.' },
+  { text: 'Second subtitle text.' }
+], null, 2);
 
 function moveFile(sourcePath, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
@@ -83,6 +87,12 @@ function createApp(options = {}) {
 
   app.get('/health', (request, response) => {
     response.json({ ok: true });
+  });
+
+  app.get('/download/script-json-example', (request, response) => {
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.setHeader('Content-Disposition', 'attachment; filename="script.example.json"');
+    response.send(SCRIPT_JSON_EXAMPLE + '\n');
   });
 
   app.post('/api/jobs/subtitles', upload.fields([
