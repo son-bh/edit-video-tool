@@ -32,10 +32,11 @@ async function withServer(app, callback) {
   }
 }
 
-function createSubtitleForm() {
+function createSubtitleForm(language = 'en') {
   const form = new FormData();
   form.append('audio', new Blob(['audio bytes']), 'sample.mp3');
   form.append('scriptJson', new Blob([JSON.stringify([{ text: 'Hello world' }])], { type: 'application/json' }), 'script.json');
+  form.append('language', language);
   return form;
 }
 
@@ -104,6 +105,7 @@ test('subtitle route starts a job, exposes status, and allows script download', 
     jobStore,
     jobRunner: {
       startSubtitleJob(job, payload) {
+        assert.equal(payload.language, 'en');
         fs.writeFileSync(path.join(payload.workspace.outputs, 'script.whisper.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
         fs.writeFileSync(path.join(payload.workspace.outputs, 'script.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
         jobStore.markCompleted(job.id, 'subtitle', {
@@ -143,6 +145,28 @@ test('subtitle route starts a job, exposes status, and allows script download', 
     const transcriptResponse = await fetch(baseUrl + `/download/${data.job.id}/transcript`);
     assert.equal(transcriptResponse.status, 200);
     assert.match(await transcriptResponse.text(), /Hello world/);
+  });
+}));
+
+test('subtitle route rejects unsupported language selection', async () => withTempDir(async (workspaceRoot) => {
+  const app = createApp({
+    workspaceRoot,
+    jobStore: createJobStore(),
+    jobRunner: {
+      startSubtitleJob() {},
+      startVideoJob() {}
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/jobs/subtitles', {
+      method: 'POST',
+      body: createSubtitleForm('jp')
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.match(data.error, /language must be one of: auto, en, vi/i);
   });
 }));
 

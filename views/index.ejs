@@ -87,6 +87,15 @@
                 <input type="file" name="transcriptSrt" accept=".srt" />
                 <small>Optional. Upload this to skip transcription and map directly to the JSON file.</small>
               </label>
+              <label class="field">
+                <span>Whisper language</span>
+                <select name="language">
+                  <option value="auto" selected>Auto detect</option>
+                  <option value="en">English</option>
+                  <option value="vi">Vietnamese</option>
+                </select>
+                <small>Used when Whisper creates the transcript from uploaded media.</small>
+              </label>
               <div class="form-actions">
                 <button type="submit">Create script</button>
               </div>

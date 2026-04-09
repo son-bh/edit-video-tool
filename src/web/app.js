@@ -18,6 +18,7 @@ const SUPPORTED_MEDIA_EXTENSIONS = new Set([
   '.mov',
   '.mkv'
 ]);
+const SUPPORTED_WHISPER_LANGUAGES = new Set(['auto', 'en', 'vi']);
 
 function moveFile(sourcePath, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
@@ -92,6 +93,7 @@ function createApp(options = {}) {
     const audioFile = request.files?.audio?.[0];
     const scriptFile = request.files?.scriptJson?.[0];
     const transcriptFile = request.files?.transcriptSrt?.[0];
+    const requestedLanguage = String(request.body?.language || '').trim().toLowerCase() || process.env.WHISPER_LANGUAGE || 'auto';
 
     if (!scriptFile || (!audioFile && !transcriptFile)) {
       unlinkIfPresent(audioFile?.path);
@@ -122,6 +124,14 @@ function createApp(options = {}) {
       unlinkIfPresent(scriptFile.path);
       unlinkIfPresent(transcriptFile.path);
       response.status(400).json({ error: 'transcriptSrt must be an .srt file.' });
+      return;
+    }
+
+    if (!SUPPORTED_WHISPER_LANGUAGES.has(requestedLanguage)) {
+      unlinkIfPresent(audioFile?.path);
+      unlinkIfPresent(scriptFile?.path);
+      unlinkIfPresent(transcriptFile?.path);
+      response.status(400).json({ error: 'language must be one of: auto, en, vi.' });
       return;
     }
 
@@ -162,7 +172,7 @@ function createApp(options = {}) {
       whisperCommandPath: process.env.WHISPER_COMMAND_PATH,
       whisperModel: process.env.WHISPER_MODEL || undefined,
       whisperModelPath: process.env.WHISPER_MODEL_PATH,
-      language: process.env.WHISPER_LANGUAGE || 'auto'
+      language: requestedLanguage
     });
 
     response.status(202).json({
@@ -289,6 +299,7 @@ function createApp(options = {}) {
 
 module.exports = {
   SUPPORTED_MEDIA_EXTENSIONS,
+  SUPPORTED_WHISPER_LANGUAGES,
   createApp,
   serializeJob
 };
