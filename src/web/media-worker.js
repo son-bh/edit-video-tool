@@ -10,7 +10,12 @@ const {
   shouldUseTranscriptAlignment,
   formatSrt
 } = require('../subtitle-generation');
-const { concatSegmentFolder, generateVideoSegments } = require('../video-segment-generation');
+const {
+  concatSegmentFolder,
+  generateVideoSegments,
+  muxVideoWithAudio,
+  renderVideoWithAudioAndSubtitles
+} = require('../video-segment-generation');
 
 function send(message) {
   if (typeof process.send === 'function') {
@@ -116,6 +121,8 @@ async function runSubtitleJob(payload, progress) {
 async function runVideoJob(payload, progress) {
   const segmentZipPath = path.join(payload.workspace.outputs, 'segments.zip');
   const finalVideoPath = path.join(payload.workspace.outputs, 'final-video.mp4');
+  const finalVideoWithAudioPath = path.join(payload.workspace.outputs, 'final-video-with-audio.mp4');
+  const finalVideoWithAudioSubtitlesPath = path.join(payload.workspace.outputs, 'final-video-with-audio-subtitles.mp4');
   const logger = createVideoLogger(progress);
 
   progress.update({
@@ -155,19 +162,57 @@ async function runVideoJob(payload, progress) {
     logger
   });
 
+  let completedOutputs = {
+    segmentZip: segmentZipPath,
+    finalVideo: finalVideoPath,
+    segmentsDir: payload.workspace.segments
+  };
+
+  if (payload.audioPath) {
+    progress.update({
+      stage: 'muxing-final-video-audio',
+      percent: 95,
+      message: 'Generating final video with audio'
+    });
+
+    muxVideoWithAudio({
+      videoPath: finalVideoPath,
+      audioPath: payload.audioPath,
+      outputPath: finalVideoWithAudioPath,
+      ffmpegPath: payload.ffmpegPath,
+      ffprobePath: payload.ffprobePath,
+      logger
+    });
+
+    completedOutputs.finalVideoWithAudio = finalVideoWithAudioPath;
+
+    progress.update({
+      stage: 'burning-subtitles',
+      percent: 97,
+      message: 'Generating final video with audio and subtitles'
+    });
+
+    renderVideoWithAudioAndSubtitles({
+      videoPath: finalVideoWithAudioPath,
+      subtitlePath: payload.scriptSrtPath,
+      outputPath: finalVideoWithAudioSubtitlesPath,
+      ffmpegPath: payload.ffmpegPath,
+      ffprobePath: payload.ffprobePath,
+      logger
+    });
+
+    completedOutputs.finalVideoWithAudioSubtitles = finalVideoWithAudioSubtitlesPath;
+  }
+
   progress.update({
     stage: 'packaging-downloads',
-    percent: 97,
+    percent: 99,
     message: 'Packaging generated segments'
   });
 
   await zipDirectory(payload.workspace.segments, segmentZipPath);
 
-  progress.complete({
-    segmentZip: segmentZipPath,
-    finalVideo: finalVideoPath,
-    segmentsDir: payload.workspace.segments
-  });
+  progress.complete(completedOutputs);
 }
 
 process.on('message', async (message) => {

@@ -7,6 +7,8 @@
   const transcriptDownload = document.getElementById('transcript-download');
   const segmentsDownload = document.getElementById('segments-download');
   const finalDownload = document.getElementById('final-download');
+  const finalAudioDownload = document.getElementById('final-audio-download');
+  const finalSubtitleDownload = document.getElementById('final-subtitle-download');
   const subtitleDownloads = document.getElementById('subtitle-downloads');
   const videoDownloads = document.getElementById('video-downloads');
   const videoSubmit = document.getElementById('video-submit');
@@ -66,8 +68,10 @@
     }
   }
 
-  function clearFileInput(name) {
-    const input = document.querySelector(`input[name="${name}"]`);
+  function clearFileInput(button) {
+    const name = button.getAttribute('data-clear-input');
+    const scope = button.closest('form') || document;
+    const input = scope.querySelector(`input[name="${name}"]`);
 
     if (!input) {
       return;
@@ -152,6 +156,18 @@
     if (job.completedPhases.video && job.outputs.hasSegmentZip && job.outputs.hasFinalVideo) {
       segmentsDownload.href = `/download/${job.id}/segments`;
       finalDownload.href = `/download/${job.id}/final-video`;
+      if (job.outputs.hasFinalVideoWithAudio) {
+        finalAudioDownload.href = `/download/${job.id}/final-video-with-audio`;
+        finalAudioDownload.classList.remove('hidden');
+      } else {
+        finalAudioDownload.classList.add('hidden');
+      }
+      if (job.outputs.hasFinalVideoWithAudioSubtitles) {
+        finalSubtitleDownload.href = `/download/${job.id}/final-video-with-audio-subtitles`;
+        finalSubtitleDownload.classList.remove('hidden');
+      } else {
+        finalSubtitleDownload.classList.add('hidden');
+      }
       videoDownloads.classList.remove('hidden');
     }
   }
@@ -166,7 +182,7 @@
       if (job.status === 'running' || job.stage === 'queued') {
         pollTimer = setTimeout(function () {
           pollJob(jobId);
-        }, 2500);
+        }, 1500);
       }
     } catch (error) {
       if (jobId === currentJobId) {
@@ -247,7 +263,7 @@
 
   clearButtons.forEach(function (button) {
     button.addEventListener('click', function () {
-      clearFileInput(button.getAttribute('data-clear-input'));
+      clearFileInput(button);
     });
   });
 

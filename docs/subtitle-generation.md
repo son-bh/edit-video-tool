@@ -59,9 +59,14 @@ The web UI lets the user:
 3. Start subtitle generation and track progress
 4. Download `script.whisper.srt` and `script.srt`
 5. Upload `script.srt` again after a page reload if the earlier subtitle job is no longer in browser state
-6. Upload multiple source videos for the same job
-7. Start segment generation and final concat
-8. Download a segment zip and the final video
+6. Optional: upload the original audio again in the video section after a page reload
+7. Upload multiple source videos for the same job
+8. Start segment generation and final rendering
+9. Download a segment zip plus the rendered 2K outputs
+10. If audio is available from either the subtitle job or the video form upload, download:
+    - `final-video.mp4` as a silent 2K final
+    - `final-video-with-audio.mp4` as a 2K final with audio
+    - `final-video-with-audio-subtitles.mp4` as a 2K final with burned subtitles
 
 The page also provides clear buttons for the selected upload files before submission.
 
@@ -166,8 +171,22 @@ This command:
 1. Reads all segment videos from the segment folder in deterministic filename order.
 2. Builds an ffmpeg concat list.
 3. Concatenates the segment files into one final output video and re-encodes the final stream for more reliable timing across many segments.
-4. Removes the audio track from the final output video.
-5. Probes the segment durations and the final output duration, then fails if the final file duration does not match the segment total within tolerance.
+4. Scales and pads the final rendered outputs to 2K (`2560x1440`) while preserving aspect ratio.
+5. Removes the audio track from the silent final output video.
+6. Probes the segment durations and the final output duration, then fails if the final file duration does not match the segment total within tolerance.
+
+When the web UI video job has access to the original uploaded media file from subtitle generation, it also runs one extra ffmpeg step after the silent final concat:
+
+1. Read the generated silent 2K `final-video.mp4`
+2. Read the original uploaded audio or video file
+3. Map video from the silent final file and audio from the original media
+4. If the generated video is longer than the uploaded audio, trim the output to the uploaded audio duration by default
+5. Write `final-video-with-audio.mp4`
+6. Burn `script.srt` into the video so subtitles show at the bottom
+7. Write `final-video-with-audio-subtitles.mp4`
+8. Expose separate download buttons for those outputs in the UI
+
+If the video workflow starts only from an uploaded `script.srt` plus source videos, the UI can still create a `final-video-with-audio.mp4` when the user uploads audio in the video section. Without any audio source, the UI only exposes the silent final video download.
 
 Use a custom `ffmpeg` or `ffprobe` path if needed:
 

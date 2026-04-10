@@ -13,6 +13,8 @@ const {
 } = require('./subtitle-generation');
 
 const DEFAULT_DURATION_TOLERANCE_SECONDS = 0.25;
+const DEFAULT_FINAL_WIDTH = 2560;
+const DEFAULT_FINAL_HEIGHT = 1440;
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([
   '.mp4',
   '.mov',
@@ -286,6 +288,22 @@ function formatSeconds(seconds) {
   return seconds.toFixed(3);
 }
 
+function buildScalePadFilter(options = {}) {
+  const width = options.outputWidth ?? DEFAULT_FINAL_WIDTH;
+  const height = options.outputHeight ?? DEFAULT_FINAL_HEIGHT;
+  return `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1`;
+}
+
+function escapeSubtitleFilterPath(filePath) {
+  return String(filePath)
+    .replace(/\\/g, '/')
+    .replace(/:/g, '\\:')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/,/g, '\\,')
+    .replace(/'/g, "\\'");
+}
+
 function cutVideo(inputPath, outputPath, duration, options = {}) {
   runFfmpeg([
     '-hide_banner',
@@ -340,7 +358,9 @@ function concatVideos(partPaths, outputPath, options = {}) {
   let outputArgs;
 
   if (shouldReencodeVideo) {
+    const videoFilters = options.videoFilters || [];
     outputArgs = [
+      ...(videoFilters.length > 0 ? ['-vf', videoFilters.join(',')] : []),
       '-c:v',
       'libx264',
       '-pix_fmt',
@@ -503,7 +523,8 @@ function concatSegmentFolder(options) {
   concatVideos(segmentPaths, outputPath, {
     ...loggerOptions,
     stripAudio,
-    reencodeVideo: true
+    reencodeVideo: true,
+    videoFilters: [buildScalePadFilter(options)]
   });
 
   const actualDuration = probeVideoDuration(outputPath, options);
@@ -522,8 +543,161 @@ function concatSegmentFolder(options) {
   };
 }
 
+function muxVideoWithAudio(options) {
+  const loggerOptions = { ...options, logger: options.logger };
+  const videoPath = options.videoPath;
+  const audioPath = options.audioPath;
+  const outputPath = options.outputPath;
+
+  if (!videoPath) {
+    throw new ValidationError('Missing video path for final video plus audio generation.');
+  }
+
+  if (!audioPath) {
+    throw new ValidationError('Missing audio path for final video plus audio generation.');
+  }
+
+  if (!outputPath) {
+    throw new ValidationError('Missing output path for final video plus audio generation.');
+  }
+
+  if (!fs.existsSync(videoPath)) {
+    throw new ValidationError(`Final video cannot be found: ${videoPath}`);
+  }
+
+  if (!fs.existsSync(audioPath)) {
+    throw new ValidationError(`Audio file cannot be found: ${audioPath}`);
+  }
+
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  const videoDuration = probeVideoDuration(videoPath, options);
+  const audioDuration = probeVideoDuration(audioPath, options);
+  const targetDuration = Math.min(videoDuration, audioDuration);
+
+  logInfo(loggerOptions, `muxVideoWithAudio: muxing ${videoPath} with ${audioPath} into ${outputPath}`);
+  logInfo(
+    loggerOptions,
+    `muxVideoWithAudio: trimming output to ${formatSeconds(targetDuration)}s (video ${formatSeconds(videoDuration)}s, audio ${formatSeconds(audioDuration)}s)`
+  );
+
+  runFfmpeg([
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    videoPath,
+    '-i',
+    audioPath,
+    '-map',
+    '0:v:0',
+    '-map',
+    '1:a:0',
+    '-t',
+    formatSeconds(targetDuration),
+    '-c:v',
+    'copy',
+    '-c:a',
+    'aac',
+    '-shortest',
+    '-movflags',
+    '+faststart',
+    outputPath
+  ], loggerOptions);
+
+  const actualDuration = probeVideoDuration(outputPath, options);
+  const tolerance = getConcatDurationTolerance(1, options);
+
+  if (Math.abs(actualDuration - targetDuration) > tolerance) {
+    throw new VideoSegmentGenerationError(
+      `Final video plus audio duration mismatch for ${outputPath}: expected ${formatSeconds(targetDuration)}s, got ${formatSeconds(actualDuration)}s.`
+    );
+  }
+
+  logInfo(loggerOptions, `muxVideoWithAudio: complete, final duration ${formatSeconds(actualDuration)}s`);
+  return {
+    outputPath,
+    actualDuration,
+    expectedDuration: targetDuration
+  };
+}
+
+function renderVideoWithAudioAndSubtitles(options) {
+  const loggerOptions = { ...options, logger: options.logger };
+  const videoPath = options.videoPath;
+  const subtitlePath = options.subtitlePath;
+  const outputPath = options.outputPath;
+
+  if (!videoPath) {
+    throw new ValidationError('Missing video path for final video plus audio plus subtitle generation.');
+  }
+
+  if (!subtitlePath) {
+    throw new ValidationError('Missing subtitle path for final video plus audio plus subtitle generation.');
+  }
+
+  if (!outputPath) {
+    throw new ValidationError('Missing output path for final video plus audio plus subtitle generation.');
+  }
+
+  if (!fs.existsSync(videoPath)) {
+    throw new ValidationError(`Final video with audio cannot be found: ${videoPath}`);
+  }
+
+  if (!fs.existsSync(subtitlePath)) {
+    throw new ValidationError(`Subtitle file cannot be found: ${subtitlePath}`);
+  }
+
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  const expectedDuration = probeVideoDuration(videoPath, options);
+  const videoFilter = `subtitles='${escapeSubtitleFilterPath(subtitlePath)}'`;
+
+  logInfo(
+    loggerOptions,
+    `renderVideoWithAudioAndSubtitles: burning ${subtitlePath} into ${videoPath} -> ${outputPath}`
+  );
+
+  runFfmpeg([
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    videoPath,
+    '-vf',
+    videoFilter,
+    '-c:v',
+    'libx264',
+    '-pix_fmt',
+    'yuv420p',
+    '-c:a',
+    'aac',
+    '-movflags',
+    '+faststart',
+    outputPath
+  ], loggerOptions);
+
+  const actualDuration = probeVideoDuration(outputPath, options);
+  const tolerance = getConcatDurationTolerance(1, options);
+
+  if (Math.abs(actualDuration - expectedDuration) > tolerance) {
+    throw new VideoSegmentGenerationError(
+      `Final video plus audio plus subtitle duration mismatch for ${outputPath}: expected ${formatSeconds(expectedDuration)}s, got ${formatSeconds(actualDuration)}s.`
+    );
+  }
+
+  logInfo(loggerOptions, `renderVideoWithAudioAndSubtitles: complete, final duration ${formatSeconds(actualDuration)}s`);
+  return {
+    outputPath,
+    actualDuration,
+    expectedDuration
+  };
+}
+
 module.exports = {
   DEFAULT_DURATION_TOLERANCE_SECONDS,
+  DEFAULT_FINAL_WIDTH,
+  DEFAULT_FINAL_HEIGHT,
   SUPPORTED_VIDEO_EXTENSIONS,
   VideoSegmentGenerationError,
   parseSegmentSrtText,
@@ -543,5 +717,7 @@ module.exports = {
   computeExpectedConcatDuration,
   getConcatDurationTolerance,
   generateVideoSegments,
-  concatSegmentFolder
+  concatSegmentFolder,
+  muxVideoWithAudio,
+  renderVideoWithAudioAndSubtitles
 };

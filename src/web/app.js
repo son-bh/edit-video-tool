@@ -76,7 +76,9 @@ function serializeJob(job) {
       hasTranscriptSrt: Boolean(job.outputs.transcriptSrt),
       hasScriptSrt: Boolean(job.outputs.scriptSrt),
       hasSegmentZip: Boolean(job.outputs.segmentZip),
-      hasFinalVideo: Boolean(job.outputs.finalVideo)
+      hasFinalVideo: Boolean(job.outputs.finalVideo),
+      hasFinalVideoWithAudio: Boolean(job.outputs.finalVideoWithAudio),
+      hasFinalVideoWithAudioSubtitles: Boolean(job.outputs.finalVideoWithAudioSubtitles)
     }
   };
 }
@@ -99,8 +101,10 @@ function createApp(options = {}) {
   });
 
   app.get('/', (request, response) => {
+    const assetVersion = String(fs.statSync(path.join(repoRoot, 'public', 'app.js')).mtimeMs);
     response.render('index', {
-      title: 'Media Workflow UI'
+      title: 'Media Workflow UI',
+      assetVersion
     });
   });
 
@@ -209,47 +213,70 @@ function createApp(options = {}) {
     });
   });
 
-  app.post('/api/jobs/:jobId/videos', upload.array('videos', 100), (request, response) => {
+  app.post('/api/jobs/:jobId/videos', upload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'videos', maxCount: 100 }
+  ]), (request, response) => {
     const job = jobStore.get(request.params.jobId);
+    const audioFile = request.files?.audio?.[0];
+    const files = request.files?.videos || [];
 
     if (!job) {
-      request.files?.forEach((file) => unlinkIfPresent(file.path));
+      unlinkIfPresent(audioFile?.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
       response.status(404).json({ error: 'Job not found.' });
       return;
     }
 
     if (!job.completedPhases.subtitle || !job.outputs.scriptSrt) {
-      request.files?.forEach((file) => unlinkIfPresent(file.path));
+      unlinkIfPresent(audioFile?.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
       response.status(400).json({ error: 'Subtitle generation must complete successfully before video generation.' });
       return;
     }
 
-    const files = request.files || [];
     if (files.length === 0) {
+      unlinkIfPresent(audioFile?.path);
       response.status(400).json({ error: 'At least one video file is required.' });
+      return;
+    }
+
+    if (audioFile && !SUPPORTED_MEDIA_EXTENSIONS.has(path.extname(audioFile.originalname).toLowerCase())) {
+      unlinkIfPresent(audioFile.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
+      response.status(400).json({ error: 'Unsupported audio or video file type for audio upload.' });
       return;
     }
 
     const invalidFile = files.find((file) => !SUPPORTED_VIDEO_EXTENSIONS.has(path.extname(file.originalname).toLowerCase()));
     if (invalidFile) {
+      unlinkIfPresent(audioFile?.path);
       files.forEach((file) => unlinkIfPresent(file.path));
       response.status(400).json({ error: 'All uploaded files must be supported video types.' });
       return;
     }
 
+    const audioPath = audioFile
+      ? moveFile(audioFile.path, path.join(job.workspace.inputs, `audio-for-video${path.extname(audioFile.originalname).toLowerCase()}`))
+      : job.files.audioPath;
     moveVideoFiles(files, job.workspace.videos);
 
     jobStore.markRunning(job.id, {
       phase: 'video',
       stage: 'queued',
       percent: 45,
-      message: 'Video generation queued'
+      message: 'Video generation queued',
+      files: {
+        ...job.files,
+        audioPath
+      }
     });
 
     jobRunner.startVideoJob(job, {
       workspace: job.workspace,
       videosDir: job.workspace.videos,
       scriptSrtPath: job.outputs.scriptSrt,
+      audioPath,
       ffmpegPath: process.env.FFMPEG_PATH,
       ffprobePath: process.env.FFPROBE_PATH,
       loopVideos: true,
@@ -262,19 +289,23 @@ function createApp(options = {}) {
   });
 
   app.post('/api/jobs/videos', upload.fields([
+    { name: 'audio', maxCount: 1 },
     { name: 'scriptSrt', maxCount: 1 },
     { name: 'videos', maxCount: 100 }
   ]), (request, response) => {
+    const audioFile = request.files?.audio?.[0];
     const scriptSrtFile = request.files?.scriptSrt?.[0];
     const files = request.files?.videos || [];
 
     if (!scriptSrtFile) {
+      unlinkIfPresent(audioFile?.path);
       files.forEach((file) => unlinkIfPresent(file.path));
       response.status(400).json({ error: 'scriptSrt is required when starting video generation without an existing subtitle job.' });
       return;
     }
 
     if (path.extname(scriptSrtFile.originalname).toLowerCase() !== '.srt') {
+      unlinkIfPresent(audioFile?.path);
       unlinkIfPresent(scriptSrtFile.path);
       files.forEach((file) => unlinkIfPresent(file.path));
       response.status(400).json({ error: 'scriptSrt must be an .srt file.' });
@@ -282,13 +313,23 @@ function createApp(options = {}) {
     }
 
     if (files.length === 0) {
+      unlinkIfPresent(audioFile?.path);
       unlinkIfPresent(scriptSrtFile.path);
       response.status(400).json({ error: 'At least one video file is required.' });
       return;
     }
 
+    if (audioFile && !SUPPORTED_MEDIA_EXTENSIONS.has(path.extname(audioFile.originalname).toLowerCase())) {
+      unlinkIfPresent(audioFile.path);
+      unlinkIfPresent(scriptSrtFile.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
+      response.status(400).json({ error: 'Unsupported audio or video file type for audio upload.' });
+      return;
+    }
+
     const invalidFile = files.find((file) => !SUPPORTED_VIDEO_EXTENSIONS.has(path.extname(file.originalname).toLowerCase()));
     if (invalidFile) {
+      unlinkIfPresent(audioFile?.path);
       unlinkIfPresent(scriptSrtFile.path);
       files.forEach((file) => unlinkIfPresent(file.path));
       response.status(400).json({ error: 'All uploaded files must be supported video types.' });
@@ -296,6 +337,9 @@ function createApp(options = {}) {
     }
 
     const job = createVideoJob(jobStore, workspaceRoot);
+    const audioPath = audioFile
+      ? moveFile(audioFile.path, path.join(job.workspace.inputs, `audio-for-video${path.extname(audioFile.originalname).toLowerCase()}`))
+      : null;
     const scriptSrtPath = moveFile(scriptSrtFile.path, path.join(job.workspace.inputs, 'script.srt'));
     moveVideoFiles(files, job.workspace.videos);
 
@@ -312,13 +356,18 @@ function createApp(options = {}) {
       phase: 'video',
       stage: 'queued',
       percent: 45,
-      message: 'Video generation queued'
+      message: 'Video generation queued',
+      files: {
+        ...job.files,
+        audioPath
+      }
     });
 
     jobRunner.startVideoJob(jobStore.get(job.id), {
       workspace: job.workspace,
       videosDir: job.workspace.videos,
       scriptSrtPath,
+      audioPath,
       ffmpegPath: process.env.FFMPEG_PATH,
       ffprobePath: process.env.FFPROBE_PATH,
       loopVideos: true,
@@ -385,6 +434,46 @@ function createApp(options = {}) {
     }
 
     response.download(job.outputs.finalVideo, 'final-video.mp4');
+  });
+
+  app.get('/download/:jobId/final-video-with-audio', (request, response) => {
+    const job = jobStore.get(request.params.jobId);
+
+    if (!job || !job.outputs.finalVideoWithAudio || !fs.existsSync(job.outputs.finalVideoWithAudio)) {
+      response.status(404).json({ error: 'Final video with audio is not available.' });
+      return;
+    }
+
+    response.download(job.outputs.finalVideoWithAudio, 'final-video-with-audio.mp4');
+  });
+
+  app.get('/download/:jobId/final-video-with-audio-subtitles', (request, response) => {
+    const job = jobStore.get(request.params.jobId);
+
+    if (!job || !job.outputs.finalVideoWithAudioSubtitles || !fs.existsSync(job.outputs.finalVideoWithAudioSubtitles)) {
+      response.status(404).json({ error: 'Final video with audio and subtitles is not available.' });
+      return;
+    }
+
+    response.download(job.outputs.finalVideoWithAudioSubtitles, 'final-video-with-audio-subtitles.mp4');
+  });
+
+  app.use((error, request, response, next) => {
+    if (!(error instanceof multer.MulterError)) {
+      next(error);
+      return;
+    }
+
+    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
+      response.status(400).json({
+        error: `Unexpected upload field: ${error.field}. Allowed fields must match the current form.`
+      });
+      return;
+    }
+
+    response.status(400).json({
+      error: error.message
+    });
   });
 
   app.locals.jobStore = jobStore;

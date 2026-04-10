@@ -72,12 +72,12 @@
 
           <div class="panel-body">
             <form id="subtitle-form" class="stack">
-              <label class="field">
+              <!-- <label class="field">
                 <span>Audio</span>
                 <input type="file" name="audio" accept=".mp3,.wav,.m4a,.aac,.mp4,.mov,.mkv" />
                 <button type="button" class="input-clear-button" data-clear-input="audio">Clear selected file</button>
                 <small>Use this when transcript generation should run from source media.</small>
-              </label>
+              </label> -->
               <label class="field">
                 <span class="field-heading">
                   <span>Script of Video (JSON file)</span>
@@ -149,6 +149,12 @@
           <div class="panel-body">
             <form id="video-form" class="stack">
               <label class="field">
+                <span>Audio</span>
+                <input type="file" name="audio" accept=".mp3,.wav,.m4a,.aac,.mp4,.mov,.mkv" />
+                <button type="button" class="input-clear-button" data-clear-input="audio">Clear selected file</button>
+                <small>Optional. Upload audio again here if the page was reloaded and you still want a final video with audio.</small>
+              </label>
+              <label class="field">
                 <span>Final Subtitles (script.srt)</span>
                 <input type="file" name="scriptSrt" accept=".srt" />
                 <button type="button" class="input-clear-button" data-clear-input="scriptSrt">Clear selected file</button>
@@ -184,12 +190,14 @@
               <ol class="stage-list">
                 <li><span class="stage-dot"></span>Upload and validate source videos</li>
                 <li><span class="stage-dot"></span>Create timed segments from subtitle cues</li>
-                <li><span class="stage-dot"></span>Concat all segments into final video</li>
+                <li><span class="stage-dot"></span>Render 2K final video, final video + audio, and final video + audio + subtitles</li>
               </ol>
 
               <div id="video-downloads" class="actions hidden">
                 <a id="segments-download" class="button-link secondary" href="#">Download all segments</a>
-                <a id="final-download" class="button-link" href="#">Download final video</a>
+                <a id="final-download" class="button-link" href="#">Download final video (2K)</a>
+                <a id="final-audio-download" class="button-link secondary hidden" href="#">Download final video + audio (2K)</a>
+                <a id="final-subtitle-download" class="button-link secondary hidden" href="#">Download final video + audio + subtitles (2K)</a>
               </div>
             </aside>
           </div>
@@ -197,7 +205,7 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=<%= assetVersion %>"></script>
 </body>
 
 </html>
