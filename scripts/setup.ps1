@@ -48,6 +48,25 @@ function Refresh-ProcessPath {
   }
 }
 
+function Invoke-WingetCommand {
+  param(
+    [string[]]$Arguments
+  )
+
+  $wingetPath = Find-CommandPath @('winget')
+  if (-not $wingetPath) {
+    throw 'WinGet was not found.'
+  }
+
+  $output = & $wingetPath @Arguments 2>&1
+  $exitCode = $LASTEXITCODE
+
+  return [pscustomobject]@{
+    Output = @($output)
+    ExitCode = $exitCode
+  }
+}
+
 function Install-WithWinget {
   param(
     [string]$PackageId,
@@ -68,9 +87,32 @@ function Install-WithWinget {
     '--accept-source-agreements',
     '--silent'
   )
-  & $wingetPath @arguments
-  if ($LASTEXITCODE -ne 0) {
-    throw "WinGet failed to install $DisplayName ($PackageId)."
+
+  $result = Invoke-WingetCommand -Arguments $arguments
+  if ($result.ExitCode -ne 0) {
+    $outputText = ($result.Output -join [Environment]::NewLine).Trim()
+    $hasSourceError = $outputText -match 'Failed when opening source\(s\)' -or
+      $outputText -match 'source reset'
+
+    if ($hasSourceError) {
+      Write-Step "WinGet source error detected while installing $DisplayName. Resetting sources and retrying once."
+      $resetResult = Invoke-WingetCommand -Arguments @('source', 'reset', '--force')
+      if ($resetResult.ExitCode -ne 0) {
+        $resetOutput = ($resetResult.Output -join [Environment]::NewLine).Trim()
+        throw "WinGet source reset failed while installing $DisplayName.`n$resetOutput"
+      }
+
+      $result = Invoke-WingetCommand -Arguments $arguments
+    }
+  }
+
+  if ($result.ExitCode -ne 0) {
+    $finalOutput = ($result.Output -join [Environment]::NewLine).Trim()
+    if ([string]::IsNullOrWhiteSpace($finalOutput)) {
+      throw "WinGet failed to install $DisplayName ($PackageId)."
+    }
+
+    throw "WinGet failed to install $DisplayName ($PackageId).`n$finalOutput"
   }
 
   Refresh-ProcessPath
