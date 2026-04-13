@@ -19,6 +19,8 @@ function createJobStore() {
       const job = {
         id: seed.id || randomUUID(),
         folderName: seed.folderName || null,
+        ownerUsername: seed.ownerUsername || null,
+        ownerKey: seed.ownerKey || null,
         phase: seed.phase || null,
         status: seed.status || 'created',
         stage: seed.stage || 'idle',
@@ -41,6 +43,15 @@ function createJobStore() {
     },
     get(jobId) {
       return jobs.get(jobId) || null;
+    },
+    getOwned(jobId, ownerKey) {
+      const job = jobs.get(jobId) || null;
+
+      if (!job || job.ownerKey !== ownerKey) {
+        return null;
+      }
+
+      return job;
     },
     update(jobId, patch) {
       const job = requireJob(jobId);

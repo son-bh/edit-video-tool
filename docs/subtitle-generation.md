@@ -25,6 +25,9 @@ WHISPER_COMMAND_PATH=whisper
 WEB_UI_HOST=127.0.0.1
 WEB_UI_PORT=3000
 WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
+WEB_UI_ALLOWED_USERNAMES=Logan,Sang,Nhi,An,Nguyen,Tai,Hien,Phuong,Ha,Trang,Den,Son,Hau,Bao
+WEB_UI_SHARED_PASSWORD=Waebox2026@
+WEB_UI_SESSION_SECRET=change-me-before-public-deploy
 ```
 
 Override tool paths with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`.
@@ -54,6 +57,25 @@ Start the web UI:
 npm run web-ui
 ```
 
+## Web UI Login
+
+The web UI now requires login before the main page or media APIs are available.
+
+- Users select one username from the configured allowlist.
+- Users enter the shared password.
+- Successful login redirects to the main workflow page.
+- Logout clears the session and returns the browser to the login page.
+
+Default usernames:
+
+- `Logan`, `Sang`, `Nhi`, `An`, `Nguyen`, `Tai`, `Hien`, `Phuong`, `Ha`, `Trang`, `Den`, `Son`, `Hau`, `Bao`
+
+Default shared password:
+
+- `Waebox2026@`
+
+For deployment, set `WEB_UI_SESSION_SECRET` to a private value instead of using the sample default.
+
 The web UI lets the user:
 
 1. Upload audio plus `script.json` or `script.txt`
@@ -71,6 +93,14 @@ The web UI lets the user:
     - `final-video-with-audio-subtitles.mp4` as a 2K final with burned subtitles
 
 The page also provides clear buttons for the selected upload files before submission.
+
+Uploaded and generated files are stored under username-scoped workspace roots:
+
+```text
+<WEB_UI_WORKSPACE_ROOT>/<username>/jobs/<timestamp-job-id>/
+```
+
+Each authenticated user can only access jobs created under that user's workspace.
 
 Run the full flow in one command:
 

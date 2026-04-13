@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/static/app.css?v=<%= assetVersion %>" />
+</head>
+
+<body>
+  <div class="app-shell app-shell--narrow">
+    <main class="login-page">
+      <section class="login-card">
+        <div class="brand">
+          <div class="brand-mark">MW</div>
+          <div>
+            <p class="eyebrow">Media Workflow</p>
+            <h1>Sign in</h1>
+          </div>
+        </div>
+
+        <p class="login-copy">Select your username and enter the shared password to access the subtitle and video workflow.</p>
+
+        <% if (error) { %>
+        <div class="status-panel error"><%= error %></div>
+        <% } %>
+
+        <form method="post" action="/login" class="stack">
+          <label class="field">
+            <span>Username</span>
+            <select name="username" required>
+              <option value="">Select username</option>
+              <% allowedUsernames.forEach(function (username) { %>
+              <option value="<%= username %>" <%= selectedUsername === username ? 'selected' : '' %>><%= username %></option>
+              <% }); %>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input type="password" name="password" autocomplete="current-password" required />
+          </label>
+
+          <div class="form-actions">
+            <button type="submit">Login</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+
+</html>

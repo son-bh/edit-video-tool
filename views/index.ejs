@@ -26,8 +26,12 @@
         </div>
       </div>
       <nav class="topnav">
+        <span class="user-chip">User: <%= currentUser %></span>
         <a href="#subtitle-panel">Subtitles</a>
         <a href="#video-panel">Videos</a>
+        <form method="post" action="/logout" class="logout-form">
+          <button type="submit" class="secondary-button">Logout</button>
+        </form>
       </nav>
     </header>
 

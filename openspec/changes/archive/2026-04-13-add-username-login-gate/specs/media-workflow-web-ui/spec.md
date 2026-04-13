@@ -1,9 +1,5 @@
-# media-workflow-web-ui Specification
+## MODIFIED Requirements
 
-## Purpose
-Define the browser-based media workflow for subtitle generation, video generation, progress tracking, and downloadable outputs.
-
-## Requirements
 ### Requirement: User can start subtitle generation from the web UI
 The system SHALL provide a browser flow that accepts one audio or video media file and one script file, validates the inputs, and starts the existing subtitle-generation workflow without requiring CLI usage. This flow SHALL only be available to an authenticated user, and the uploaded files for each job SHALL be stored under that user's workspace path.
 
@@ -17,19 +13,6 @@ The system SHALL provide a browser flow that accepts one audio or video media fi
 - **WHEN** an authenticated user submits subtitle generation without both required files, or the script file is invalid
 - **THEN** the system rejects the request with a clear validation error
 - **THEN** the system does not start a subtitle-generation job
-
-### Requirement: Subtitle generation progress is visible in the web UI
-The system SHALL expose browser-readable job status for subtitle generation, including current stage, percent progress, human-readable message, and terminal success or failure state.
-
-#### Scenario: Subtitle generation reports progress through defined stages
-- **WHEN** a subtitle-generation job is running
-- **THEN** the system exposes progress states covering transcript creation and final subtitle mapping
-- **THEN** each status response includes a percent value, stage identifier, and current message
-
-#### Scenario: Subtitle generation failure is visible to the user
-- **WHEN** subtitle generation fails because of upload, tool, transcript, or mapping errors
-- **THEN** the system marks the job as failed
-- **THEN** the UI can retrieve a clear failure message for display
 
 ### Requirement: User can download generated subtitle outputs
 The system SHALL make generated subtitle outputs available for browser download after a subtitle-generation job completes successfully. Download access SHALL be limited to authenticated requests for jobs owned by the current user.

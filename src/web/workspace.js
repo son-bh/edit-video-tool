@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { slugifyUsername } = require('./auth');
+
 function formatJobFolderTimestamp(input) {
   const date = input instanceof Date ? input : new Date(input || Date.now());
   const year = String(date.getFullYear());
@@ -29,13 +31,31 @@ function ensureDir(dirPath) {
 function ensureWorkspaceRoot(customRoot) {
   const root = getWorkspaceRoot(customRoot);
   ensureDir(root);
+  return root;
+}
+
+function ensureScopedWorkspaceRoot(root) {
+  ensureDir(root);
   ensureDir(path.join(root, 'jobs'));
   ensureDir(path.join(root, 'staging'));
   return root;
 }
 
+function getUserWorkspaceRoot(customRoot, username) {
+  const baseRoot = ensureWorkspaceRoot(customRoot);
+  const userKey = slugifyUsername(username);
+
+  if (!userKey) {
+    throw new Error('username is required to resolve a user workspace root.');
+  }
+
+  return ensureScopedWorkspaceRoot(path.join(baseRoot, userKey));
+}
+
 function createJobWorkspace(jobId, customRoot, options = {}) {
-  const root = ensureWorkspaceRoot(customRoot);
+  const root = options.username
+    ? getUserWorkspaceRoot(customRoot, options.username)
+    : ensureScopedWorkspaceRoot(ensureWorkspaceRoot(customRoot));
   const folderName = options.folderName || buildJobFolderName(jobId, options.createdAt);
   const jobRoot = ensureDir(path.join(root, 'jobs', folderName));
   const inputs = ensureDir(path.join(jobRoot, 'inputs'));
@@ -53,8 +73,11 @@ function createJobWorkspace(jobId, customRoot, options = {}) {
   };
 }
 
-function getStagingDir(customRoot) {
-  return ensureDir(path.join(ensureWorkspaceRoot(customRoot), 'staging'));
+function getStagingDir(customRoot, username) {
+  const root = username
+    ? getUserWorkspaceRoot(customRoot, username)
+    : ensureScopedWorkspaceRoot(ensureWorkspaceRoot(customRoot));
+  return ensureDir(path.join(root, 'staging'));
 }
 
 module.exports = {
@@ -63,5 +86,6 @@ module.exports = {
   ensureWorkspaceRoot,
   formatJobFolderTimestamp,
   getStagingDir,
+  getUserWorkspaceRoot,
   getWorkspaceRoot
 };

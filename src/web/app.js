@@ -5,6 +5,7 @@ const express = require('express');
 const multer = require('multer');
 
 const { SUPPORTED_VIDEO_EXTENSIONS } = require('../video-segment-generation');
+const { createAuthConfig, createAuthManager } = require('./auth');
 const { createJobRunner } = require('./job-runner');
 const { createJobStore } = require('./job-store');
 const { createJobWorkspace, ensureWorkspaceRoot, getStagingDir } = require('./workspace');
@@ -36,10 +37,22 @@ function unlinkIfPresent(filePath) {
   }
 }
 
-function createVideoJob(jobStore, workspaceRoot) {
-  const job = jobStore.create();
+function getAssetVersion(repoRoot) {
+  return String(fs.statSync(path.join(repoRoot, 'public', 'app.js')).mtimeMs);
+}
+
+function getOwnedJob(jobStore, request) {
+  return jobStore.getOwned(request.params.jobId, request.auth?.workspaceKey) || null;
+}
+
+function createVideoJob(jobStore, workspaceRoot, auth) {
+  const job = jobStore.create({
+    ownerUsername: auth.username,
+    ownerKey: auth.workspaceKey
+  });
   const workspace = createJobWorkspace(job.id, workspaceRoot, {
-    createdAt: job.createdAt
+    createdAt: job.createdAt,
+    username: auth.workspaceKey
   });
   jobStore.update(job.id, {
     folderName: workspace.folderName,
@@ -63,6 +76,7 @@ function serializeJob(job) {
   return {
     id: job.id,
     folderName: job.folderName,
+    ownerUsername: job.ownerUsername,
     phase: job.phase,
     status: job.status,
     stage: job.stage,
@@ -87,6 +101,7 @@ function createApp(options = {}) {
   const workspaceRoot = ensureWorkspaceRoot(options.workspaceRoot);
   const jobStore = options.jobStore || createJobStore();
   const jobRunner = options.jobRunner || createJobRunner(jobStore);
+  const authManager = options.authManager || createAuthManager(createAuthConfig(options.auth));
   const stagingDir = getStagingDir(workspaceRoot);
   const repoRoot = path.resolve(__dirname, '..', '..');
 
@@ -94,17 +109,60 @@ function createApp(options = {}) {
   app.set('view engine', 'ejs');
   app.set('views', path.join(repoRoot, 'views'));
   app.use(express.urlencoded({ extended: true }));
+  app.use(authManager.attachSession);
   app.use('/static', express.static(path.join(repoRoot, 'public')));
 
   const upload = multer({
     dest: stagingDir
   });
 
-  app.get('/', (request, response) => {
-    const assetVersion = String(fs.statSync(path.join(repoRoot, 'public', 'app.js')).mtimeMs);
+  app.get('/login', (request, response) => {
+    if (request.auth) {
+      response.redirect('/');
+      return;
+    }
+
+    response.render('login', {
+      title: 'Media Workflow Login',
+      assetVersion: getAssetVersion(repoRoot),
+      allowedUsernames: authManager.config.allowedUsernames,
+      error: null,
+      selectedUsername: ''
+    });
+  });
+
+  app.post('/login', (request, response) => {
+    const selectedUsername = String(request.body?.username || '').trim();
+    const password = String(request.body?.password || '');
+    const allowedUser = authManager.authenticate(selectedUsername, password);
+
+    if (!allowedUser) {
+      response.status(401).render('login', {
+        title: 'Media Workflow Login',
+        assetVersion: getAssetVersion(repoRoot),
+        allowedUsernames: authManager.config.allowedUsernames,
+        error: 'Invalid username or password.',
+        selectedUsername
+      });
+      return;
+    }
+
+    const session = authManager.createSession(allowedUser);
+    authManager.setSessionCookie(response, session);
+    response.redirect('/');
+  });
+
+  app.post('/logout', authManager.requirePageAuth, (request, response) => {
+    authManager.destroySession(request, response);
+    response.redirect('/login');
+  });
+
+  app.get('/', authManager.requirePageAuth, (request, response) => {
+    const assetVersion = getAssetVersion(repoRoot);
     response.render('index', {
       title: 'Media Workflow UI',
-      assetVersion
+      assetVersion,
+      currentUser: request.auth.username
     });
   });
 
@@ -112,13 +170,13 @@ function createApp(options = {}) {
     response.json({ ok: true });
   });
 
-  app.get('/download/script-json-example', (request, response) => {
+  app.get('/download/script-json-example', authManager.requirePageAuth, (request, response) => {
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.setHeader('Content-Disposition', 'attachment; filename="script.example.json"');
     response.send(SCRIPT_JSON_EXAMPLE + '\n');
   });
 
-  app.post('/api/jobs/subtitles', upload.fields([
+  app.post('/api/jobs/subtitles', authManager.requireApiAuth, upload.fields([
     { name: 'audio', maxCount: 1 },
     { name: 'scriptJson', maxCount: 1 },
     { name: 'transcriptSrt', maxCount: 1 }
@@ -169,9 +227,13 @@ function createApp(options = {}) {
       return;
     }
 
-    const job = jobStore.create();
+    const job = jobStore.create({
+      ownerUsername: request.auth.username,
+      ownerKey: request.auth.workspaceKey
+    });
     const workspace = createJobWorkspace(job.id, workspaceRoot, {
-      createdAt: job.createdAt
+      createdAt: job.createdAt,
+      username: request.auth.workspaceKey
     });
     jobStore.update(job.id, {
       folderName: workspace.folderName
@@ -214,11 +276,11 @@ function createApp(options = {}) {
     });
   });
 
-  app.post('/api/jobs/:jobId/videos', upload.fields([
+  app.post('/api/jobs/:jobId/videos', authManager.requireApiAuth, upload.fields([
     { name: 'audio', maxCount: 1 },
     { name: 'videos', maxCount: 100 }
   ]), (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+    const job = getOwnedJob(jobStore, request);
     const audioFile = request.files?.audio?.[0];
     const files = request.files?.videos || [];
 
@@ -289,7 +351,7 @@ function createApp(options = {}) {
     });
   });
 
-  app.post('/api/jobs/videos', upload.fields([
+  app.post('/api/jobs/videos', authManager.requireApiAuth, upload.fields([
     { name: 'audio', maxCount: 1 },
     { name: 'scriptSrt', maxCount: 1 },
     { name: 'videos', maxCount: 100 }
@@ -337,7 +399,7 @@ function createApp(options = {}) {
       return;
     }
 
-    const job = createVideoJob(jobStore, workspaceRoot);
+    const job = createVideoJob(jobStore, workspaceRoot, request.auth);
     const audioPath = audioFile
       ? moveFile(audioFile.path, path.join(job.workspace.inputs, `audio-for-video${path.extname(audioFile.originalname).toLowerCase()}`))
       : null;
@@ -380,11 +442,11 @@ function createApp(options = {}) {
     });
   });
 
-  app.get('/api/jobs/:jobId', (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+  app.get('/api/jobs/:jobId', authManager.requireApiAuth, (request, response) => {
+    const job = getOwnedJob(jobStore, request);
 
     if (!job) {
-      response.status(404).json({ error: 'Job not found.' });
+      response.status(403).json({ error: 'Access denied for this job.' });
       return;
     }
 
@@ -393,8 +455,8 @@ function createApp(options = {}) {
     });
   });
 
-  app.get('/download/:jobId/script', (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+  app.get('/download/:jobId/script', authManager.requirePageAuth, (request, response) => {
+    const job = getOwnedJob(jobStore, request);
 
     if (!job || !job.outputs.scriptSrt || !fs.existsSync(job.outputs.scriptSrt)) {
       response.status(404).json({ error: 'script.srt is not available.' });
@@ -404,8 +466,8 @@ function createApp(options = {}) {
     response.download(job.outputs.scriptSrt, 'script.srt');
   });
 
-  app.get('/download/:jobId/transcript', (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+  app.get('/download/:jobId/transcript', authManager.requirePageAuth, (request, response) => {
+    const job = getOwnedJob(jobStore, request);
 
     if (!job || !job.outputs.transcriptSrt || !fs.existsSync(job.outputs.transcriptSrt)) {
       response.status(404).json({ error: 'script.whisper.srt is not available.' });
@@ -415,8 +477,8 @@ function createApp(options = {}) {
     response.download(job.outputs.transcriptSrt, 'script.whisper.srt');
   });
 
-  app.get('/download/:jobId/segments', (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+  app.get('/download/:jobId/segments', authManager.requirePageAuth, (request, response) => {
+    const job = getOwnedJob(jobStore, request);
 
     if (!job || !job.outputs.segmentZip || !fs.existsSync(job.outputs.segmentZip)) {
       response.status(404).json({ error: 'Segment archive is not available.' });
@@ -426,8 +488,8 @@ function createApp(options = {}) {
     response.download(job.outputs.segmentZip, 'segments.zip');
   });
 
-  app.get('/download/:jobId/final-video', (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+  app.get('/download/:jobId/final-video', authManager.requirePageAuth, (request, response) => {
+    const job = getOwnedJob(jobStore, request);
 
     if (!job || !job.outputs.finalVideo || !fs.existsSync(job.outputs.finalVideo)) {
       response.status(404).json({ error: 'Final video is not available.' });
@@ -437,8 +499,8 @@ function createApp(options = {}) {
     response.download(job.outputs.finalVideo, 'final-video.mp4');
   });
 
-  app.get('/download/:jobId/final-video-with-audio', (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+  app.get('/download/:jobId/final-video-with-audio', authManager.requirePageAuth, (request, response) => {
+    const job = getOwnedJob(jobStore, request);
 
     if (!job || !job.outputs.finalVideoWithAudio || !fs.existsSync(job.outputs.finalVideoWithAudio)) {
       response.status(404).json({ error: 'Final video with audio is not available.' });
@@ -448,8 +510,8 @@ function createApp(options = {}) {
     response.download(job.outputs.finalVideoWithAudio, 'final-video-with-audio.mp4');
   });
 
-  app.get('/download/:jobId/final-video-with-audio-subtitles', (request, response) => {
-    const job = jobStore.get(request.params.jobId);
+  app.get('/download/:jobId/final-video-with-audio-subtitles', authManager.requirePageAuth, (request, response) => {
+    const job = getOwnedJob(jobStore, request);
 
     if (!job || !job.outputs.finalVideoWithAudioSubtitles || !fs.existsSync(job.outputs.finalVideoWithAudioSubtitles)) {
       response.status(404).json({ error: 'Final video with audio and subtitles is not available.' });
@@ -479,6 +541,7 @@ function createApp(options = {}) {
 
   app.locals.jobStore = jobStore;
   app.locals.workspaceRoot = workspaceRoot;
+  app.locals.authManager = authManager;
   return app;
 }
 
