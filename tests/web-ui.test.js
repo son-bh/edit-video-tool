@@ -60,12 +60,14 @@ function createVideoForm() {
   const form = new FormData();
   form.append('videos', new Blob(['video one']), 'video-1.mp4');
   form.append('videos', new Blob(['video two']), 'video-2.mp4');
+  form.append('aspectRatio', '16:9');
   return form;
 }
 
-function createStandaloneVideoForm() {
+function createStandaloneVideoForm(aspectRatio = '16:9') {
   const form = createVideoForm();
   form.append('scriptSrt', new Blob(['1\n00:00:00,000 --> 00:00:01,000\nHello world\n']), 'script.srt');
+  form.set('aspectRatio', aspectRatio);
   return form;
 }
 
@@ -170,6 +172,8 @@ test('login succeeds and renders the main page', async () => withTempDir(async (
 
     assert.equal(pageResponse.status, 200);
     assert.match(body, /User: Logan/);
+    assert.match(body, /16:9 \(2K\)/);
+    assert.match(body, /9:16 \(1080p\)/);
   });
 }));
 
@@ -527,6 +531,7 @@ test('video route starts a job and exposes segment and final video downloads', a
     jobRunner: {
       startSubtitleJob() {},
       startVideoJob(currentJob, payload) {
+        assert.equal(payload.aspectRatio, '16:9');
         const segmentZip = path.join(payload.workspace.outputs, 'segments.zip');
         const finalVideo = path.join(payload.workspace.outputs, 'final-video.mp4');
         fs.writeFileSync(segmentZip, 'zip bytes');
@@ -566,6 +571,73 @@ test('video route starts a job and exposes segment and final video downloads', a
     });
     assert.equal(finalResponse.status, 200);
     assert.equal(await finalResponse.text(), 'video bytes');
+  });
+}));
+
+test('video route accepts 9:16 aspect ratio for a standalone job', async () => withTempDir(async (workspaceRoot) => {
+  const jobStore = createJobStore();
+  const app = createApp({
+    workspaceRoot,
+    jobStore,
+    jobRunner: {
+      startSubtitleJob() {},
+      startVideoJob(currentJob, payload) {
+        assert.equal(payload.aspectRatio, '9:16');
+        const segmentZip = path.join(payload.workspace.outputs, 'segments.zip');
+        const finalVideo = path.join(payload.workspace.outputs, 'final-video.mp4');
+        fs.writeFileSync(segmentZip, 'zip bytes');
+        fs.writeFileSync(finalVideo, 'video bytes');
+        jobStore.markCompleted(currentJob.id, 'video', {
+          segmentZip,
+          finalVideo,
+          segmentsDir: payload.workspace.segments
+        }, {
+          phase: 'video',
+          message: 'Video generation complete'
+        });
+      }
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const { cookie } = await login(baseUrl);
+    const response = await fetch(baseUrl + '/api/jobs/videos', {
+      method: 'POST',
+      body: createStandaloneVideoForm('9:16'),
+      headers: withAuth(cookie)
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 202);
+    assert.equal(data.job.aspectRatio, '9:16');
+    assert.equal(data.job.renderLabel, '1080p');
+  });
+}));
+
+test('video route rejects unsupported aspect ratios', async () => withTempDir(async (workspaceRoot) => {
+  const app = createApp({
+    workspaceRoot,
+    jobStore: createJobStore(),
+    jobRunner: {
+      startSubtitleJob() {},
+      startVideoJob() {}
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const { cookie } = await login(baseUrl);
+    const form = createStandaloneVideoForm();
+    form.set('aspectRatio', '1:1');
+
+    const response = await fetch(baseUrl + '/api/jobs/videos', {
+      method: 'POST',
+      body: form,
+      headers: withAuth(cookie)
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.match(data.error, /Unsupported aspect ratio/i);
   });
 }));
 

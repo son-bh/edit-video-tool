@@ -4,7 +4,11 @@ const path = require('node:path');
 const express = require('express');
 const multer = require('multer');
 
-const { SUPPORTED_VIDEO_EXTENSIONS } = require('../video-segment-generation');
+const {
+  DEFAULT_ASPECT_RATIO,
+  resolveVideoRenderPreset,
+  SUPPORTED_VIDEO_EXTENSIONS
+} = require('../video-segment-generation');
 const { createAuthConfig, createAuthManager } = require('./auth');
 const { createJobRunner } = require('./job-runner');
 const { createJobStore } = require('./job-store');
@@ -77,6 +81,8 @@ function serializeJob(job) {
     id: job.id,
     folderName: job.folderName,
     ownerUsername: job.ownerUsername,
+    aspectRatio: job.aspectRatio || DEFAULT_ASPECT_RATIO,
+    renderLabel: job.renderLabel || resolveVideoRenderPreset(job.aspectRatio || DEFAULT_ASPECT_RATIO).label,
     phase: job.phase,
     status: job.status,
     stage: job.stage,
@@ -283,11 +289,23 @@ function createApp(options = {}) {
     const job = getOwnedJob(jobStore, request);
     const audioFile = request.files?.audio?.[0];
     const files = request.files?.videos || [];
+    const requestedAspectRatio = String(request.body?.aspectRatio || '').trim() || job?.aspectRatio || DEFAULT_ASPECT_RATIO;
 
     if (!job) {
       unlinkIfPresent(audioFile?.path);
       files.forEach((file) => unlinkIfPresent(file.path));
       response.status(404).json({ error: 'Job not found.' });
+      return;
+    }
+
+    let videoRenderPreset;
+
+    try {
+      videoRenderPreset = resolveVideoRenderPreset(requestedAspectRatio);
+    } catch (error) {
+      unlinkIfPresent(audioFile?.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
+      response.status(400).json({ error: error.message });
       return;
     }
 
@@ -329,6 +347,8 @@ function createApp(options = {}) {
       stage: 'queued',
       percent: 45,
       message: 'Video generation queued',
+      aspectRatio: videoRenderPreset.key,
+      renderLabel: videoRenderPreset.label,
       files: {
         ...job.files,
         audioPath
@@ -342,6 +362,7 @@ function createApp(options = {}) {
       audioPath,
       ffmpegPath: process.env.FFMPEG_PATH,
       ffprobePath: process.env.FFPROBE_PATH,
+      aspectRatio: videoRenderPreset.key,
       loopVideos: true,
       durationToleranceSeconds: 0.25
     });
@@ -359,6 +380,7 @@ function createApp(options = {}) {
     const audioFile = request.files?.audio?.[0];
     const scriptSrtFile = request.files?.scriptSrt?.[0];
     const files = request.files?.videos || [];
+    const requestedAspectRatio = String(request.body?.aspectRatio || '').trim() || DEFAULT_ASPECT_RATIO;
 
     if (!scriptSrtFile) {
       unlinkIfPresent(audioFile?.path);
@@ -399,6 +421,18 @@ function createApp(options = {}) {
       return;
     }
 
+    let videoRenderPreset;
+
+    try {
+      videoRenderPreset = resolveVideoRenderPreset(requestedAspectRatio);
+    } catch (error) {
+      unlinkIfPresent(audioFile?.path);
+      unlinkIfPresent(scriptSrtFile?.path);
+      files.forEach((file) => unlinkIfPresent(file.path));
+      response.status(400).json({ error: error.message });
+      return;
+    }
+
     const job = createVideoJob(jobStore, workspaceRoot, request.auth);
     const audioPath = audioFile
       ? moveFile(audioFile.path, path.join(job.workspace.inputs, `audio-for-video${path.extname(audioFile.originalname).toLowerCase()}`))
@@ -420,6 +454,8 @@ function createApp(options = {}) {
       stage: 'queued',
       percent: 45,
       message: 'Video generation queued',
+      aspectRatio: videoRenderPreset.key,
+      renderLabel: videoRenderPreset.label,
       files: {
         ...job.files,
         audioPath
@@ -433,6 +469,7 @@ function createApp(options = {}) {
       audioPath,
       ffmpegPath: process.env.FFMPEG_PATH,
       ffprobePath: process.env.FFPROBE_PATH,
+      aspectRatio: videoRenderPreset.key,
       loopVideos: true,
       durationToleranceSeconds: 0.25
     });

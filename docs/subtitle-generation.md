@@ -88,11 +88,14 @@ The web UI lets the user:
 6. Optional: upload the original audio again in the video section after a page reload
 7. Upload multiple source videos for the same job
 8. Start segment generation and final rendering
-9. Download a segment zip plus the rendered 2K outputs
-10. If audio is available from either the subtitle job or the video form upload, download:
-    - `final-video.mp4` as a silent 2K final
-    - `final-video-with-audio.mp4` as a 2K final with audio
-    - `final-video-with-audio-subtitles.mp4` as a 2K final with burned subtitles
+9. Choose the final output aspect ratio:
+   - `16:9` renders at `2K` (`2560x1440`)
+   - `9:16` renders at `1080p` (`1080x1920`)
+10. Download a segment zip plus the rendered final outputs
+11. If audio is available from either the subtitle job or the video form upload, download:
+    - `final-video.mp4` as a silent final in the selected preset
+    - `final-video-with-audio.mp4` as a final with audio in the selected preset
+    - `final-video-with-audio-subtitles.mp4` as a final with burned subtitles in the selected preset
 
 The page also provides clear buttons for the selected upload files before submission.
 
@@ -205,13 +208,15 @@ This command:
 1. Reads all segment videos from the segment folder in deterministic filename order.
 2. Builds an ffmpeg concat list.
 3. Concatenates the segment files into one final output video and re-encodes the final stream for more reliable timing across many segments.
-4. Scales and pads the final rendered outputs to 2K (`2560x1440`) while preserving aspect ratio.
+4. Scales and pads the final rendered outputs to the selected preset while preserving aspect ratio.
+   - `16:9` -> `2560x1440` (`2K`)
+   - `9:16` -> `1080x1920` (`1080p`)
 5. Removes the audio track from the silent final output video.
 6. Probes the segment durations and the final output duration, then fails if the final file duration does not match the segment total within tolerance.
 
 When the web UI video job has access to the original uploaded media file from subtitle generation, it also runs one extra ffmpeg step after the silent final concat:
 
-1. Read the generated silent 2K `final-video.mp4`
+1. Read the generated silent preset-sized `final-video.mp4`
 2. Read the original uploaded audio or video file
 3. Map video from the silent final file and audio from the original media
 4. If the generated video is longer than the uploaded audio, trim the output to the uploaded audio duration by default
@@ -226,6 +231,12 @@ Use a custom `ffmpeg` or `ffprobe` path if needed:
 
 ```bash
 npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --ffmpeg /path/to/ffmpeg --ffprobe /path/to/ffprobe
+```
+
+Use the vertical export preset:
+
+```bash
+npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --aspect-ratio 9:16
 ```
 
 ## Script Formats

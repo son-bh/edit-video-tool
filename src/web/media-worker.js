@@ -159,6 +159,7 @@ async function runVideoJob(payload, progress) {
     outputPath: finalVideoPath,
     ffmpegPath: payload.ffmpegPath,
     ffprobePath: payload.ffprobePath,
+    aspectRatio: payload.aspectRatio,
     logger
   });
 

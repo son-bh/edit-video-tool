@@ -7,7 +7,12 @@ const {
 } = require('./subtitle-generation');
 const { loadEnvFile } = require('./env');
 const { createLogger } = require('./logger');
-const { concatSegmentFolder, generateVideoSegments } = require('./video-segment-generation');
+const {
+  concatSegmentFolder,
+  DEFAULT_ASPECT_RATIO,
+  generateVideoSegments,
+  resolveVideoRenderPreset
+} = require('./video-segment-generation');
 
 loadEnvFile();
 
@@ -35,6 +40,7 @@ function printUsage() {
     '  --transcript-out Optional path to save the raw Whisper SRT transcript',
     '  --transcribe-only Create only the raw Whisper transcript and skip JSON mapping',
     '  --duration-tolerance Optional duration tolerance in seconds for generated video segments',
+    '  --aspect-ratio Optional final render aspect ratio for concat outputs: 16:9 or 9:16',
     '  --loop-videos Reuse source videos from the beginning if there are more SRT cues than videos',
     '  --quiet Disable progress logs'
   ].join('\n'));
@@ -66,7 +72,7 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (!['--json', '--audio', '--out', '--srt', '--videos', '--segments-out', '--concat-segments', '--final-out', '--ffmpeg', '--ffprobe', '--whisper-command', '--whisper-model', '--language', '--transcript-in', '--transcript-out', '--duration-tolerance'].includes(flag)) {
+    if (!['--json', '--audio', '--out', '--srt', '--videos', '--segments-out', '--concat-segments', '--final-out', '--ffmpeg', '--ffprobe', '--whisper-command', '--whisper-model', '--language', '--transcript-in', '--transcript-out', '--duration-tolerance', '--aspect-ratio'].includes(flag)) {
       throw new Error(`Unknown argument: ${flag}`);
     }
 
@@ -127,6 +133,11 @@ function main(argv = process.argv.slice(2)) {
 
   try {
     const logger = createLogger({ quiet: args.quiet });
+    const aspectRatio = args['aspect-ratio'] || DEFAULT_ASPECT_RATIO;
+
+    if (args['aspect-ratio']) {
+      resolveVideoRenderPreset(aspectRatio);
+    }
 
     if (isConcatSegments) {
       const result = concatSegmentFolder({
@@ -134,10 +145,11 @@ function main(argv = process.argv.slice(2)) {
         outputPath: args['final-out'],
         ffmpegPath: args.ffmpeg,
         ffprobePath: args.ffprobe,
+        aspectRatio,
         logger
       });
 
-      console.log(`Concatenated ${result.segmentPaths.length} segments into ${args['final-out']}`);
+      console.log(`Concatenated ${result.segmentPaths.length} segments into ${args['final-out']} (${result.videoRenderPreset.label}, ${result.videoRenderPreset.key})`);
       return 0;
     }
 

@@ -15,6 +15,7 @@ const {
   generateVideoSegments,
   getConcatDurationTolerance,
   parseSegmentSrtText,
+  resolveVideoRenderPreset,
   selectVideoForCue
 } = require('../src/video-segment-generation');
 
@@ -151,6 +152,22 @@ test('createSegmentPlan uses segmentDuration when timeline gaps are preserved', 
   assert.deepEqual(plan.parts, [{ kind: 'cut', duration: 5.5 }]);
 });
 
+test('resolveVideoRenderPreset returns supported presets and rejects invalid values', () => {
+  assert.deepEqual(resolveVideoRenderPreset('16:9'), {
+    key: '16:9',
+    width: 2560,
+    height: 1440,
+    label: '2K'
+  });
+  assert.deepEqual(resolveVideoRenderPreset('9:16'), {
+    key: '9:16',
+    width: 1080,
+    height: 1920,
+    label: '1080p'
+  });
+  assert.throws(() => resolveVideoRenderPreset('1:1'), /Unsupported aspect ratio/);
+});
+
 test('executeSegmentPlan builds ffmpeg cut and concat commands', () => withTempDir((dir) => {
   const commands = [];
   const commandRunner = (command, args) => {
@@ -268,6 +285,41 @@ test('concatSegmentFolder concatenates segment videos in deterministic order', (
   assert.ok(commands[0].args.includes('-an'));
   assert.ok(commands[0].args.includes('libx264'));
   assert.ok(commands[0].args.includes('-pix_fmt'));
+  const filterIndex = commands[0].args.indexOf('-vf');
+  assert.notEqual(filterIndex, -1);
+  assert.match(commands[0].args[filterIndex + 1], /scale=2560:1440/);
+}));
+
+test('concatSegmentFolder applies the 9:16 preset to final rendering', () => withTempDir((dir) => {
+  const segmentDir = path.join(dir, 'segments');
+  const outputPath = path.join(dir, 'final', 'final.mp4');
+  const commands = [];
+
+  fs.mkdirSync(segmentDir);
+  fs.writeFileSync(path.join(segmentDir, 'segment-001.mp4'), '');
+
+  const result = concatSegmentFolder({
+    segmentDir,
+    outputPath,
+    aspectRatio: '9:16',
+    ffmpegPath: 'ffmpeg',
+    commandRunner: (command, args) => {
+      commands.push({ command, args });
+      return '';
+    },
+    durationProbe: (filePath) => {
+      if (filePath === outputPath) {
+        return 6;
+      }
+
+      return 6;
+    }
+  });
+
+  assert.equal(result.videoRenderPreset.key, '9:16');
+  const filterIndex = commands[0].args.indexOf('-vf');
+  assert.notEqual(filterIndex, -1);
+  assert.match(commands[0].args[filterIndex + 1], /scale=1080:1920/);
 }));
 
 test('computeExpectedConcatDuration sums segment durations', () => {

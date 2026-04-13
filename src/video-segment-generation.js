@@ -15,6 +15,21 @@ const {
 const DEFAULT_DURATION_TOLERANCE_SECONDS = 0.25;
 const DEFAULT_FINAL_WIDTH = 2560;
 const DEFAULT_FINAL_HEIGHT = 1440;
+const DEFAULT_ASPECT_RATIO = '16:9';
+const VIDEO_RENDER_PRESETS = Object.freeze({
+  '16:9': {
+    key: '16:9',
+    width: DEFAULT_FINAL_WIDTH,
+    height: DEFAULT_FINAL_HEIGHT,
+    label: '2K'
+  },
+  '9:16': {
+    key: '9:16',
+    width: 1080,
+    height: 1920,
+    label: '1080p'
+  }
+});
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([
   '.mp4',
   '.mov',
@@ -288,9 +303,21 @@ function formatSeconds(seconds) {
   return seconds.toFixed(3);
 }
 
+function resolveVideoRenderPreset(aspectRatio = DEFAULT_ASPECT_RATIO) {
+  const normalized = String(aspectRatio || DEFAULT_ASPECT_RATIO).trim();
+  const preset = VIDEO_RENDER_PRESETS[normalized];
+
+  if (!preset) {
+    throw new ValidationError(`Unsupported aspect ratio: ${normalized}. Use 16:9 or 9:16.`);
+  }
+
+  return preset;
+}
+
 function buildScalePadFilter(options = {}) {
-  const width = options.outputWidth ?? DEFAULT_FINAL_WIDTH;
-  const height = options.outputHeight ?? DEFAULT_FINAL_HEIGHT;
+  const preset = options.videoRenderPreset || resolveVideoRenderPreset(options.aspectRatio);
+  const width = options.outputWidth ?? preset.width;
+  const height = options.outputHeight ?? preset.height;
   return `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1`;
 }
 
@@ -503,6 +530,7 @@ function concatSegmentFolder(options) {
   const loggerOptions = { ...options, logger: options.logger };
   const segmentDir = options.segmentDir;
   const outputPath = options.outputPath;
+  const videoRenderPreset = resolveVideoRenderPreset(options.aspectRatio);
 
   if (!segmentDir) {
     throw new ValidationError('Missing segment folder for final concat.');
@@ -522,9 +550,10 @@ function concatSegmentFolder(options) {
   logInfo(loggerOptions, `concatSegmentFolder: concatenating ${segmentPaths.length} segments into ${outputPath}`);
   concatVideos(segmentPaths, outputPath, {
     ...loggerOptions,
+    videoRenderPreset,
     stripAudio,
     reencodeVideo: true,
-    videoFilters: [buildScalePadFilter(options)]
+    videoFilters: [buildScalePadFilter({ ...options, videoRenderPreset })]
   });
 
   const actualDuration = probeVideoDuration(outputPath, options);
@@ -538,6 +567,7 @@ function concatSegmentFolder(options) {
   return {
     segmentPaths,
     outputPath,
+    videoRenderPreset,
     actualDuration,
     expectedDuration
   };
@@ -696,8 +726,10 @@ function renderVideoWithAudioAndSubtitles(options) {
 
 module.exports = {
   DEFAULT_DURATION_TOLERANCE_SECONDS,
+  DEFAULT_ASPECT_RATIO,
   DEFAULT_FINAL_WIDTH,
   DEFAULT_FINAL_HEIGHT,
+  VIDEO_RENDER_PRESETS,
   SUPPORTED_VIDEO_EXTENSIONS,
   VideoSegmentGenerationError,
   parseSegmentSrtText,
@@ -716,6 +748,7 @@ module.exports = {
   validateOutputDuration,
   computeExpectedConcatDuration,
   getConcatDurationTolerance,
+  resolveVideoRenderPreset,
   generateVideoSegments,
   concatSegmentFolder,
   muxVideoWithAudio,

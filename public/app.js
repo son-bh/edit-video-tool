@@ -23,9 +23,15 @@
   const clearButtons = document.querySelectorAll('[data-clear-input]');
   const videoScriptInput = document.querySelector('input[name="scriptSrt"]');
   const videoFilesInput = document.querySelector('input[name="videos"]');
+  const aspectRatioSelect = document.getElementById('aspect-ratio-select');
 
   let currentJobId = null;
   let pollTimer = null;
+
+  const renderLabels = {
+    '16:9': '2K',
+    '9:16': '1080p'
+  };
 
   function setStatus(element, text, isError) {
     element.textContent = text;
@@ -66,6 +72,21 @@
       clearTimeout(pollTimer);
       pollTimer = null;
     }
+  }
+
+  function getSelectedAspectRatio() {
+    return aspectRatioSelect && aspectRatioSelect.value ? aspectRatioSelect.value : '16:9';
+  }
+
+  function getRenderLabel(aspectRatio) {
+    return renderLabels[aspectRatio] || renderLabels['16:9'];
+  }
+
+  function updateVideoDownloadLabels(aspectRatio) {
+    const renderLabel = getRenderLabel(aspectRatio);
+    finalDownload.textContent = `Download final video (${renderLabel})`;
+    finalAudioDownload.textContent = `Download final video + audio (${renderLabel})`;
+    finalSubtitleDownload.textContent = `Download final video + audio + subtitles (${renderLabel})`;
   }
 
   function clearFileInput(button) {
@@ -154,6 +175,7 @@
     }
 
     if (job.completedPhases.video && job.outputs.hasSegmentZip && job.outputs.hasFinalVideo) {
+      updateVideoDownloadLabels(job.aspectRatio || getSelectedAspectRatio());
       segmentsDownload.href = `/download/${job.id}/segments`;
       finalDownload.href = `/download/${job.id}/final-video`;
       if (job.outputs.hasFinalVideoWithAudio) {
@@ -228,6 +250,7 @@
     clearPoll();
     videoDownloads.classList.add('hidden');
     const formData = new FormData(videoForm);
+    updateVideoDownloadLabels(getSelectedAspectRatio());
     const uploadedScript = formData.get('scriptSrt');
     const hasUploadedScript = uploadedScript instanceof File && uploadedScript.size > 0;
     const endpoint = currentJobId && !hasUploadedScript
@@ -275,5 +298,12 @@
     videoFilesInput.addEventListener('change', refreshVideoAvailability);
   }
 
+  if (aspectRatioSelect) {
+    aspectRatioSelect.addEventListener('change', function () {
+      updateVideoDownloadLabels(getSelectedAspectRatio());
+    });
+  }
+
+  updateVideoDownloadLabels(getSelectedAspectRatio());
   refreshVideoAvailability();
 }());

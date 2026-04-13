@@ -170,6 +170,14 @@
                 <button type="button" class="input-clear-button" data-clear-input="videos">Clear selected files</button>
                 <small>Upload the ordered source videos used to build cue-matched segments.</small>
               </label>
+              <label class="field">
+                <span>Output aspect ratio</span>
+                <select name="aspectRatio" id="aspect-ratio-select">
+                  <option value="16:9" selected>16:9 (2K)</option>
+                  <option value="9:16">9:16 (1080p)</option>
+                </select>
+                <small>Only final export size changes. Segment generation flow stays the same.</small>
+              </label>
               <div class="form-actions">
                 <button type="submit" disabled id="video-submit">Create video outputs</button>
               </div>
@@ -194,7 +202,7 @@
               <ol class="stage-list">
                 <li><span class="stage-dot"></span>Upload and validate source videos</li>
                 <li><span class="stage-dot"></span>Create timed segments from subtitle cues</li>
-                <li><span class="stage-dot"></span>Render 2K final video, final video + audio, and final video + audio + subtitles</li>
+                <li><span class="stage-dot"></span>Render final video outputs using the selected 16:9 (2K) or 9:16 (1080p) preset</li>
               </ol>
 
               <div id="video-downloads" class="actions hidden">
