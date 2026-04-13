@@ -311,6 +311,15 @@ input[type="file"] {
   background: transparent;
 }
 
+.login-page input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 select {
   width: 100%;
   min-height: 42px;
@@ -319,6 +328,10 @@ select {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
+}
+
+select option {
+  color: black;
 }
 
 .form-actions {

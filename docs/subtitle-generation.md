@@ -28,6 +28,7 @@ WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
 WEB_UI_ALLOWED_USERNAMES=Logan,Sang,Nhi,An,Nguyen,Tai,Hien,Phuong,Ha,Trang,Den,Son,Hau,Bao
 WEB_UI_SHARED_PASSWORD=Waebox2026@
 WEB_UI_SESSION_SECRET=change-me-before-public-deploy
+WEB_UI_SESSION_MAX_AGE_MS=2592000000
 ```
 
 Override tool paths with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`.
@@ -65,6 +66,7 @@ The web UI now requires login before the main page or media APIs are available.
 - Users enter the shared password.
 - Successful login redirects to the main workflow page.
 - Logout clears the session and returns the browser to the login page.
+- Default session lifetime is 30 days unless `WEB_UI_SESSION_MAX_AGE_MS` overrides it.
 
 Default usernames:
 

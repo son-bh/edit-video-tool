@@ -19,7 +19,7 @@ const DEFAULT_ALLOWED_USERNAMES = [
 const DEFAULT_SHARED_PASSWORD = 'Waebox2026@';
 const DEFAULT_SESSION_SECRET = 'change-me-before-public-deploy';
 const DEFAULT_COOKIE_NAME = 'media_workflow_session';
-const DEFAULT_SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 12;
+const DEFAULT_SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
 
 function normalizeAllowedUsernames(value) {
   if (Array.isArray(value)) {
