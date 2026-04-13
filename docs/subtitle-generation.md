@@ -1,17 +1,19 @@
 # Subtitle Generation
 
-Generate a final SRT file from a JSON script and an audio/video file.
+Generate a final SRT file from a script file and an audio/video file.
 
-The JSON file is the source of truth for subtitle text. Whisper is used to create timing from the audio, then the tool maps Whisper subtitle segments back to the JSON items. The final subtitle text is copied exactly from JSON.
+The script file is the source of truth for subtitle text. Whisper is used to create timing from the audio, then the tool maps Whisper subtitle segments back to the script items. The final subtitle text is copied exactly from the script input.
 
 ## Current Scope
 
 - Runtime: Node.js 20 or newer.
-- JSON input: an array of objects with non-empty `text` string fields.
-- Current limit: 100 JSON items.
+- Script input:
+  - `.json`: an array of objects with non-empty `text` string fields
+  - `.txt`: one subtitle item per non-empty line
+- Current limit: 100 script items.
 - Audio input: any audio/video format that `ffmpeg` can decode, such as MP3, MP4, M4A, MOV, AAC, and WAV.
 - Raw transcript output: Whisper-generated SRT.
-- Final output: JSON-mapped SRT.
+- Final output: script-mapped SRT.
 - Tool paths are loaded from `.env`, CLI flags, or the current process environment.
 
 Example `.env`:
@@ -34,9 +36,9 @@ For cross-platform setup, prefer command names on `PATH` instead of Windows-only
 The normal command runs two steps:
 
 1. Create a raw Whisper subtitle file from the audio.
-2. Read the raw Whisper subtitle file, accumulate Whisper segments until their normalized text matches the current JSON item, then copy the accumulated start/end time onto the exact JSON text.
+2. Read the raw Whisper subtitle file, accumulate Whisper segments until their normalized text matches the current script item, then copy the accumulated start/end time onto the exact script text.
 
-If the current accumulated Whisper text does not match the current JSON item, the mapper continues accumulating Whisper segments. If it still cannot match, generation fails with a mismatch error instead of guessing.
+If the current accumulated Whisper text does not match the current script item, the mapper continues accumulating Whisper segments. If it still cannot match, generation fails with a mismatch error instead of guessing.
 
 ## Commands
 
@@ -54,8 +56,8 @@ npm run web-ui
 
 The web UI lets the user:
 
-1. Upload audio plus `script.json`
-2. Optional: upload `script.whisper.srt` with `script.json` to skip audio transcription
+1. Upload audio plus `script.json` or `script.txt`
+2. Optional: upload `script.whisper.srt` with `script.json` or `script.txt` to skip audio transcription
 3. Start subtitle generation and track progress
 4. Download `script.whisper.srt` and `script.srt`
 5. Upload `script.srt` again after a page reload if the earlier subtitle job is no longer in browser state
@@ -79,7 +81,7 @@ npm run generate-subtitles -- --json assets/script/script.json --audio assets/au
 This creates:
 
 - `assets/script/script.whisper.srt`: raw Whisper subtitle file
-- `assets/script/script.srt`: final JSON-mapped subtitle file
+- `assets/script/script.srt`: final script-mapped subtitle file
 
 Create only the raw Whisper subtitle file:
 
@@ -194,7 +196,7 @@ Use a custom `ffmpeg` or `ffprobe` path if needed:
 npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --ffmpeg /path/to/ffmpeg --ffprobe /path/to/ffprobe
 ```
 
-## JSON Format
+## Script Formats
 
 ```json
 [
@@ -203,17 +205,24 @@ npm run generate-video-segments -- --concat-segments assets/segments --final-out
 ]
 ```
 
+```text
+Something
+Something 2
+```
+
 ## Error Behavior
 
 The tool rejects generation when:
 
+- the script file type is not `.json` or `.txt`
 - the JSON file is malformed or not an array
-- an item is missing a non-empty `text` string
-- the JSON list contains more than 100 items
+- a JSON item is missing a non-empty `text` string
+- the text file contains no non-empty lines
+- the script list contains more than 100 items
 - the audio file is missing or unreadable
 - `ffmpeg` cannot decode the audio/video file
 - Python Whisper cannot create the raw subtitle file
-- accumulated Whisper subtitle text cannot be matched to the current JSON item
+- accumulated Whisper subtitle text cannot be matched to the current script item
 - generated timestamps are invalid or unexpectedly overlap
 
-Successful output contains exactly one SRT cue per JSON item, in JSON order, with cue text exactly equal to the corresponding JSON `text` value.
+Successful output contains exactly one SRT cue per script item, in input order, with cue text exactly equal to the corresponding script text.

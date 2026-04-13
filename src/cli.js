@@ -13,12 +13,12 @@ loadEnvFile();
 
 function printUsage() {
   console.log([
-    'Usage: node src/cli.js --json <subtitles.json> --audio <audio-or-video> --out <output.srt>',
+    'Usage: node src/cli.js --json <subtitles.json|subtitles.txt> --audio <audio-or-video> --out <output.srt>',
     '       node src/cli.js --srt <script.srt> --videos <video-folder> --segments-out <output-folder>',
     '       node src/cli.js --concat-segments <segment-folder> --final-out <output-video>',
     '',
     'Options:',
-    '  --json   Path to JSON array of subtitle text items',
+    '  --json   Path to a subtitle script file in .json or .txt format',
     '  --audio  Path to an audio/video file. PCM WAV is read directly; other formats require ffmpeg',
     '  --out    Path for the generated SRT subtitle file',
     '  --srt    Path to an existing SRT file for video segment generation',

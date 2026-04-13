@@ -20,6 +20,8 @@ const {
   normalizeForTranscriptMatch,
   parseSrtCues,
   parseSubtitleItems,
+  parseSubtitleJsonFile,
+  parseSubtitleTextItems,
   validateCues
 } = require('../src/subtitle-generation');
 
@@ -96,6 +98,33 @@ test('parseSubtitleItems enforces the 100 item limit', () => {
 
   assert.throws(() => parseSubtitleItems(JSON.stringify(items)), /current limit is 100/);
 });
+
+test('parseSubtitleTextItems converts non-empty lines into subtitle items', () => {
+  const items = parseSubtitleTextItems('Something\n\n Something 2 \r\nSomething 3\r\n');
+
+  assert.deepEqual(items, [
+    { text: 'Something' },
+    { text: 'Something 2' },
+    { text: 'Something 3' }
+  ]);
+});
+
+test('parseSubtitleTextItems rejects empty text files', () => {
+  assert.throws(() => parseSubtitleTextItems('\n  \r\n\t'), /must contain at least one non-empty line/i);
+});
+
+test('parseSubtitleJsonFile accepts .txt and rejects unsupported script types', () => withTempDir((dir) => {
+  const textPath = path.join(dir, 'script.txt');
+  const invalidPath = path.join(dir, 'script.csv');
+  fs.writeFileSync(textPath, 'One\nTwo\n');
+  fs.writeFileSync(invalidPath, 'One,Two\n');
+
+  assert.deepEqual(parseSubtitleJsonFile(textPath), [
+    { text: 'One' },
+    { text: 'Two' }
+  ]);
+  assert.throws(() => parseSubtitleJsonFile(invalidPath), /Use \.json or \.txt/i);
+}));
 
 test('alignSubtitleItemsToAudio derives one cue per JSON item and preserves text exactly', () => withTempDir((dir) => {
   const audioPath = path.join(dir, 'voice.wav');

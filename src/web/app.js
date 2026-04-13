@@ -144,11 +144,12 @@ function createApp(options = {}) {
       return;
     }
 
-    if (path.extname(scriptFile.originalname).toLowerCase() !== '.json') {
-      unlinkIfPresent(audioFile.path);
+    const scriptExtension = path.extname(scriptFile.originalname).toLowerCase();
+    if (!['.json', '.txt'].includes(scriptExtension)) {
+      unlinkIfPresent(audioFile?.path);
       unlinkIfPresent(scriptFile.path);
       unlinkIfPresent(transcriptFile?.path);
-      response.status(400).json({ error: 'scriptJson must be a .json file.' });
+      response.status(400).json({ error: 'scriptJson must be a .json or .txt file.' });
       return;
     }
 
@@ -178,7 +179,7 @@ function createApp(options = {}) {
     const audioPath = audioFile
       ? moveFile(audioFile.path, path.join(workspace.inputs, `audio${path.extname(audioFile.originalname).toLowerCase()}`))
       : null;
-    const jsonPath = moveFile(scriptFile.path, path.join(workspace.inputs, 'script.json'));
+    const jsonPath = moveFile(scriptFile.path, path.join(workspace.inputs, `script${scriptExtension}`));
     const transcriptPath = transcriptFile
       ? moveFile(transcriptFile.path, path.join(workspace.inputs, 'script.whisper.srt'))
       : null;

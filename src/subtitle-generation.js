@@ -78,9 +78,41 @@ function parseSubtitleItems(jsonText, options = {}) {
   });
 }
 
+function parseSubtitleTextItems(text, options = {}) {
+  logStep(options, 'parseSubtitleTextItems: parsing plain text lines');
+  const maxItems = options.maxItems ?? DEFAULT_MAX_ITEMS;
+  const items = text
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => ({ text: line }));
+
+  if (items.length > maxItems) {
+    throw new ValidationError(`Subtitle text file contains ${items.length} items; the current limit is ${maxItems} items.`);
+  }
+
+  if (items.length === 0) {
+    throw new ValidationError('Subtitle text file must contain at least one non-empty line.');
+  }
+
+  logStep(options, `parseSubtitleTextItems: validated ${items.length} subtitle items`);
+  return items;
+}
+
 function parseSubtitleJsonFile(jsonPath, options = {}) {
   logStep(options, `parseSubtitleJsonFile: reading ${jsonPath}`);
-  return parseSubtitleItems(fs.readFileSync(jsonPath, 'utf8'), options);
+  const extension = path.extname(jsonPath).toLowerCase();
+  const fileText = fs.readFileSync(jsonPath, 'utf8');
+
+  if (extension === '.json') {
+    return parseSubtitleItems(fileText, options);
+  }
+
+  if (extension === '.txt') {
+    return parseSubtitleTextItems(fileText, options);
+  }
+
+  throw new ValidationError(`Unsupported subtitle script file type: ${extension || '(no extension)'}. Use .json or .txt.`);
 }
 
 function validateAudioFile(audioPath, options = {}) {
@@ -319,7 +351,7 @@ function groupSegmentsToItemCount(segments, itemsOrItemCount, options = {}) {
 
   if (segments.length < itemCount) {
     throw new AlignmentMismatchError(
-      `Audio analysis found ${segments.length} speech segments, but JSON contains ${itemCount} subtitle items.`
+      `Audio analysis found ${segments.length} speech segments, but the script contains ${itemCount} subtitle items.`
     );
   }
 
@@ -358,7 +390,7 @@ function groupSegmentsToItemCount(segments, itemsOrItemCount, options = {}) {
 
       if (!boundary) {
         throw new AlignmentMismatchError(
-          `Audio analysis could not find a reliable boundary after JSON item ${itemIndex + 1}.`
+          `Audio analysis could not find a reliable boundary after script item ${itemIndex + 1}.`
         );
       }
 
@@ -697,7 +729,7 @@ function alignItemsToTranscriptTimeline(items, transcriptCues) {
     const matchOffset = timeline.text.indexOf(normalizedItem, searchOffset);
 
     if (matchOffset === -1) {
-      throw new AlignmentMismatchError(`Transcript text did not match JSON item ${itemIndex + 1}: ${items[itemIndex].text}`);
+      throw new AlignmentMismatchError(`Transcript text did not match script item ${itemIndex + 1}: ${items[itemIndex].text}`);
     }
 
     const matchEndOffset = matchOffset + normalizedItem.length;
@@ -717,7 +749,7 @@ function appendNormalizedText(left, right) {
 }
 
 function alignItemsToAccumulatedTranscript(items, transcriptCues, options = {}) {
-  logStep(options, `alignItemsToAccumulatedTranscript: mapping ${items.length} JSON items against ${transcriptCues.length} Whisper cues`);
+  logStep(options, `alignItemsToAccumulatedTranscript: mapping ${items.length} script items against ${transcriptCues.length} Whisper cues`);
   const aligned = [];
   let transcriptIndex = 0;
 
@@ -763,7 +795,7 @@ function alignItemsToAccumulatedTranscript(items, transcriptCues, options = {}) 
 
     if (!matched) {
       throw new AlignmentMismatchError(
-        `Accumulated Whisper subtitle text did not match JSON item ${itemIndex + 1}: ${items[itemIndex].text}`
+        `Accumulated Whisper subtitle text did not match script item ${itemIndex + 1}: ${items[itemIndex].text}`
       );
     }
   }
@@ -848,7 +880,7 @@ function findBestTokenWindow(itemWords, transcriptWords, startIndex, options = {
 }
 
 function alignItemsToTranscriptWords(items, transcriptCues, options = {}) {
-  logStep(options, `alignItemsToTranscriptWords: fuzzy mapping ${items.length} JSON items against ${transcriptCues.length} Whisper cues`);
+  logStep(options, `alignItemsToTranscriptWords: fuzzy mapping ${items.length} script items against ${transcriptCues.length} Whisper cues`);
   const transcriptWords = buildTranscriptWordTimeline(transcriptCues);
   const minTokenMatchScore = options.minTokenMatchScore ?? 0.55;
   const aligned = [];
@@ -859,7 +891,7 @@ function alignItemsToTranscriptWords(items, transcriptCues, options = {}) {
     const match = findBestTokenWindow(itemWords, transcriptWords, wordIndex, options);
 
     if (!match || match.score < minTokenMatchScore) {
-      throw new AlignmentMismatchError(`Transcript text did not match JSON item ${itemIndex + 1}: ${items[itemIndex].text}`);
+      throw new AlignmentMismatchError(`Transcript text did not match script item ${itemIndex + 1}: ${items[itemIndex].text}`);
     }
 
     aligned.push({
@@ -889,7 +921,7 @@ function alignItemsToTranscriptCues(items, transcriptCues, options = {}) {
     const match = windows.find((window) => normalizeForTranscriptMatch(window.text).includes(normalizedItem));
 
     if (!match) {
-      throw new AlignmentMismatchError(`Transcript text did not match JSON item ${itemIndex + 1}: ${items[itemIndex].text}`);
+      throw new AlignmentMismatchError(`Transcript text did not match script item ${itemIndex + 1}: ${items[itemIndex].text}`);
     }
 
     aligned.push({
@@ -1028,7 +1060,7 @@ function generateSubtitles(options) {
       });
     }
 
-    logStep(alignmentOptions, 'generateSubtitles: Step 2 mapping transcript to JSON');
+    logStep(alignmentOptions, 'generateSubtitles: Step 2 mapping transcript to script items');
     cues = mapJsonItemsToTranscriptFile(items, transcriptPath, alignmentOptions);
   } else {
     logStep(alignmentOptions, 'generateSubtitles: transcript alignment disabled, using fallback');
@@ -1056,6 +1088,7 @@ module.exports = {
   AlignmentMismatchError,
   TimingError,
   parseSubtitleItems,
+  parseSubtitleTextItems,
   parseSubtitleJsonFile,
   validateAudioFile,
   isRiffWaveBuffer,

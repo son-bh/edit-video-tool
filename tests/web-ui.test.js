@@ -40,6 +40,14 @@ function createSubtitleForm(language = 'en') {
   return form;
 }
 
+function createSubtitleTxtForm(language = 'en') {
+  const form = new FormData();
+  form.append('audio', new Blob(['audio bytes']), 'sample.mp3');
+  form.append('scriptJson', new Blob(['Hello world\nSecond line\n'], { type: 'text/plain' }), 'script.txt');
+  form.append('language', language);
+  return form;
+}
+
 function createTranscriptOnlyForm() {
   const form = new FormData();
   form.append('scriptJson', new Blob([JSON.stringify([{ text: 'Hello world' }])], { type: 'application/json' }), 'script.json');
@@ -193,6 +201,67 @@ test('subtitle route rejects unsupported language selection', async () => withTe
 
     assert.equal(response.status, 400);
     assert.match(data.error, /language must be one of: auto, en, vi/i);
+  });
+}));
+
+test('subtitle route accepts uploaded .txt script files', async () => withTempDir(async (workspaceRoot) => {
+  const jobStore = createJobStore();
+  const app = createApp({
+    workspaceRoot,
+    jobStore,
+    jobRunner: {
+      startSubtitleJob(job, payload) {
+        assert.equal(payload.language, 'en');
+        assert.match(payload.jsonPath, /script\.txt$/);
+        fs.writeFileSync(path.join(payload.workspace.outputs, 'script.whisper.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
+        fs.writeFileSync(path.join(payload.workspace.outputs, 'script.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
+        jobStore.markCompleted(job.id, 'subtitle', {
+          transcriptSrt: path.join(payload.workspace.outputs, 'script.whisper.srt'),
+          scriptSrt: path.join(payload.workspace.outputs, 'script.srt')
+        }, {
+          phase: 'subtitle',
+          message: 'Subtitle generation complete'
+        });
+      },
+      startVideoJob() {}
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/jobs/subtitles', {
+      method: 'POST',
+      body: createSubtitleTxtForm()
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 202);
+    assert.equal(data.job.completedPhases.subtitle, true);
+  });
+}));
+
+test('subtitle route rejects unsupported script file types', async () => withTempDir(async (workspaceRoot) => {
+  const app = createApp({
+    workspaceRoot,
+    jobStore: createJobStore(),
+    jobRunner: {
+      startSubtitleJob() {},
+      startVideoJob() {}
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const form = new FormData();
+    form.append('audio', new Blob(['audio bytes']), 'sample.mp3');
+    form.append('scriptJson', new Blob(['hello'], { type: 'text/csv' }), 'script.csv');
+
+    const response = await fetch(baseUrl + '/api/jobs/subtitles', {
+      method: 'POST',
+      body: form
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.match(data.error, /\.json or \.txt/i);
   });
 }));
 

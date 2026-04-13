@@ -37,7 +37,7 @@
           <span class="badge">Node.js + ffmpeg + Whisper</span>
           <h2>Upload media once, track each stage, and download the finished outputs.</h2>
           <p class="hero-text">
-            The web UI runs the same backend flows as the CLI: transcript creation, JSON-mapped subtitle generation,
+            The web UI runs the same backend flows as the CLI: transcript creation, script-mapped subtitle generation,
             segment rendering, and final video concat.
           </p>
         </div>
@@ -50,7 +50,7 @@
           <article class="stat-card">
             <span class="stat-label">Step 2</span>
             <strong>Create `script.srt`</strong>
-            <p>Timing mapped back to exact JSON text.</p>
+            <p>Timing mapped back to exact script text.</p>
           </article>
           <article class="stat-card">
             <span class="stat-label">Step 3</span>
@@ -65,7 +65,7 @@
           <div class="panel-header">
             <div>
               <p class="eyebrow">Workflow 1</p>
-              <h3>Create script from audio and JSON</h3>
+              <h3>Create script from audio and script file</h3>
             </div>
             <span class="panel-tag">Required first</span>
           </div>
@@ -80,18 +80,18 @@
               </label> -->
               <label class="field">
                 <span class="field-heading">
-                  <span>Script of Video (JSON file)</span>
+                  <span>Script of Video (.json or .txt)</span>
                   <a class="inline-link" href="/download/script-json-example">Download example</a>
                 </span>
-                <input type="file" name="scriptJson" accept=".json,application/json" required />
+                <input type="file" name="scriptJson" accept=".json,.txt,application/json,text/plain" required />
                 <button type="button" class="input-clear-button" data-clear-input="scriptJson">Clear selected file</button>
-                <small>Final subtitle text will match this file exactly.</small>
+                <small>Use JSON array items or one text line per subtitle. Final subtitle text will match this file exactly.</small>
               </label>
               <label class="field">
                 <span>Subtitle from Audio (script.whisper.srt)</span>
                 <input type="file" name="transcriptSrt" accept=".srt" />
                 <button type="button" class="input-clear-button" data-clear-input="transcriptSrt">Clear selected file</button>
-                <small>Optional. Upload this to skip transcription and map directly to the JSON file.</small>
+                <small>Optional. Upload this to skip transcription and map directly to the script file.</small>
               </label>
               <label class="field">
                 <span>Whisper language</span>
@@ -126,7 +126,7 @@
               <ol class="stage-list">
                 <li><span class="stage-dot"></span>Queue subtitle job</li>
                 <li><span class="stage-dot"></span>Create transcript or use uploaded transcript</li>
-                <li><span class="stage-dot"></span>Map transcript to JSON and write `script.srt`</li>
+                <li><span class="stage-dot"></span>Map transcript to script items and write `script.srt`</li>
               </ol>
 
               <div id="subtitle-downloads" class="actions hidden">

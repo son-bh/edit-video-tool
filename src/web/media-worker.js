@@ -46,7 +46,7 @@ async function runSubtitleJob(payload, progress) {
     progress.update({
       stage: 'mapping-subtitles',
       percent: 55,
-      message: 'Mapping uploaded transcript to JSON script'
+      message: 'Mapping uploaded transcript to script items'
     });
 
     const items = parseSubtitleJsonFile(payload.jsonPath, { logger });
@@ -76,7 +76,7 @@ async function runSubtitleJob(payload, progress) {
     progress.update({
       stage: 'mapping-subtitles',
       percent: 55,
-      message: 'Mapping transcript timing to JSON script'
+      message: 'Mapping transcript timing to script items'
     });
 
     generateSubtitles({
