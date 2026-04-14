@@ -78,15 +78,20 @@ Installer notes:
 npm install
 ```
 
+Build the TypeScript runtime:
+
+```bash
+npm run build
+```
+
 ## Project Structure
 
-- `src/cli.js`: CLI entrypoint
-- `src/web/server.js`: web UI server entrypoint
-- `src/web/app.js`: Express app, routes, upload handling, and download endpoints
-- `src/web/media-worker.js`: background worker for subtitle and video jobs
-- `src/subtitle-generation.js`: JSON validation, Whisper transcript creation, transcript mapping, SRT generation
-- `src/video-segment-generation.js`: SRT-driven segment generation and final concat
-- `src/logger.js`: Winston logger setup
+- `src/*.ts`: TypeScript source
+- `src/subtitle/`: subtitle parsing, transcript, audio, alignment, and orchestration modules
+- `src/video/`: SRT parsing, segment planning, ffmpeg helpers, render presets, and final video orchestration
+- `src/app/`: Express app shell with config, routes, controllers, middleware, and app-level services
+- `public/app.ts`: browser UI logic compiled into `dist/public/app.js`
+- `dist/`: compiled runtime output from `npm run build`
 - `tests/`: automated tests
 - `docs/subtitle-generation.md`: detailed workflow notes
 - `assets/`: local sample inputs and outputs for manual verification
@@ -288,7 +293,7 @@ Examples of cases that fail fast:
 
 ## Development Notes
 
-- Runtime: CommonJS on Node.js
+- Runtime: TypeScript compiled to CommonJS on Node.js
 - Logging: Winston
-- Tests: Node test runner via `node --test`
+- Tests: Node test runner via `npm test`
 - Detailed workflow notes: `docs/subtitle-generation.md`

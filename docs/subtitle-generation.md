@@ -6,7 +6,7 @@ The script file is the source of truth for subtitle text. Whisper is used to cre
 
 ## Current Scope
 
-- Runtime: Node.js 20 or newer.
+- Runtime: Node.js 20 or newer, implemented in TypeScript and compiled to `dist/`.
 - Script input:
   - `.json`: an array of objects with non-empty `text` string fields
   - `.txt`: one subtitle item per non-empty line
@@ -46,11 +46,23 @@ If the current accumulated Whisper text does not match the current script item, 
 
 ## Commands
 
+Build the TypeScript runtime:
+
+```bash
+npm run build
+```
+
 Run tests:
 
 ```bash
-node --test
+npm test
 ```
+
+The repo now uses small domain modules instead of one large file per workflow:
+
+- `src/subtitle/`: script parsing, audio analysis, Whisper integration, transcript alignment, and SRT formatting
+- `src/video/`: SRT cue parsing, video discovery, ffmpeg helpers, segment planning, render presets, and final output rendering
+- `src/app/`: web app composition, routes, controllers, middleware, workspace/job state, and background worker orchestration
 
 Start the web UI:
 
