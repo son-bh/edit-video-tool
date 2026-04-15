@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { resolveVideoRenderPreset } from '../../../video-segment-generation';
+import { resolveVideoRenderPreset } from '../../../video';
 
 function normalizeStem(value: string): string {
   const trimmed = String(value || '').trim();

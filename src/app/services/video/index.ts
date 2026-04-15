@@ -6,4 +6,4 @@ export {
   muxVideoWithAudio,
   renderVideoWithAudioAndSubtitles,
   resolveVideoRenderPreset
-} from '../../../video-segment-generation';
+} from '../../../video';

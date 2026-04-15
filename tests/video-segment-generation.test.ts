@@ -17,7 +17,7 @@ import {
   parseSegmentSrtText,
   resolveVideoRenderPreset,
   selectVideoForCue
-} from '../src/video-segment-generation';
+} from '../src/video';
 
 function withTempDir(callback: (dir: string) => void): void {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'video-segment-generation-'));

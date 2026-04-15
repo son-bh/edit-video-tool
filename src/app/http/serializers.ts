@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { DEFAULT_ASPECT_RATIO, resolveVideoRenderPreset } from '../../video-segment-generation';
+import { DEFAULT_ASPECT_RATIO, resolveVideoRenderPreset } from '../../video';
 import type { JobRecord } from '../types';
 
 export function serializeJob(job: JobRecord | null): Record<string, unknown> | null {

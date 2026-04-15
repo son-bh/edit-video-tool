@@ -4,14 +4,9 @@
   "private": true,
   "description": "Generate subtitles from JSON text items and matching audio timing.",
   "type": "commonjs",
-  "bin": {
-    "generate-subtitles": "dist/src/cli.js"
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-static.mjs",
     "test": "npm run build && node --test dist/tests",
-    "generate-subtitles": "npm run build && node dist/src/cli.js",
-    "generate-video-segments": "npm run build && node dist/src/cli.js",
     "web-ui": "npm run build && node dist/src/app/server.js"
   },
   "dependencies": {

@@ -5,4 +5,4 @@ export {
   mapJsonItemsToTranscriptFile,
   parseSubtitleJsonFile,
   shouldUseTranscriptAlignment
-} from '../../../subtitle-generation';
+} from '../../../subtitle';

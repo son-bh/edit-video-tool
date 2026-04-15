@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Request, Response } from 'express';
 
-import { DEFAULT_ASPECT_RATIO, resolveVideoRenderPreset, SUPPORTED_VIDEO_EXTENSIONS } from '../../video-segment-generation';
+import { DEFAULT_ASPECT_RATIO, resolveVideoRenderPreset, SUPPORTED_VIDEO_EXTENSIONS } from '../../video';
 import type { AppContext } from '../context';
 import type { JobRecord } from '../types';
 import { SUPPORTED_MEDIA_EXTENSIONS } from '../config/media';

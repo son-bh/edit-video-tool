@@ -2,7 +2,7 @@
 
 Generate a final SRT file from a script file and an audio/video file.
 
-The script file is the source of truth for subtitle text. Whisper is used to create timing from the audio, then the tool maps Whisper subtitle segments back to the script items. The final subtitle text is copied exactly from the script input.
+The script file is the source of truth for subtitle text. Whisper is used to create timing from the audio, then the web worker maps Whisper subtitle segments back to the script items. The final subtitle text is copied exactly from the script input.
 
 ## Current Scope
 
@@ -14,7 +14,7 @@ The script file is the source of truth for subtitle text. Whisper is used to cre
 - Audio input: any audio/video format that `ffmpeg` can decode, such as MP3, MP4, M4A, MOV, AAC, and WAV.
 - Raw transcript output: Whisper-generated SRT.
 - Final output: script-mapped SRT.
-- Tool paths are loaded from `.env`, CLI flags, or the current process environment.
+- Tool paths are loaded from `.env` or the current process environment.
 
 Example `.env`:
 
@@ -31,20 +31,20 @@ WEB_UI_SESSION_SECRET=change-me-before-public-deploy
 WEB_UI_SESSION_MAX_AGE_MS=2592000000
 ```
 
-Override tool paths with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`.
+Override tool paths with `FFMPEG_PATH`, `FFPROBE_PATH`, and `WHISPER_COMMAND_PATH`.
 
 For cross-platform setup, prefer command names on `PATH` instead of Windows-only absolute executable paths.
 
 ## Flow
 
-The normal command runs two steps:
+The normal subtitle job runs two steps:
 
 1. Create a raw Whisper subtitle file from the audio.
 2. Read the raw Whisper subtitle file, accumulate Whisper segments until their normalized text matches the current script item, then copy the accumulated start/end time onto the exact script text.
 
 If the current accumulated Whisper text does not match the current script item, the mapper continues accumulating Whisper segments. If it still cannot match, generation fails with a mismatch error instead of guessing.
 
-## Commands
+## Runtime
 
 Build the TypeScript runtime:
 
@@ -58,7 +58,7 @@ Run tests:
 npm test
 ```
 
-The repo now uses small domain modules instead of one large file per workflow:
+The repo uses small domain modules instead of one large file per workflow:
 
 - `src/subtitle/`: script parsing, audio analysis, Whisper integration, transcript alignment, and SRT formatting
 - `src/video/`: SRT cue parsing, video discovery, ffmpeg helpers, segment planning, render presets, and final output rendering
@@ -120,56 +120,14 @@ Uploaded and generated files are stored under username-scoped workspace roots:
 
 Each authenticated user can only access jobs created under that user's workspace.
 
-Run the full flow in one command:
+When the subtitle job runs successfully, it creates:
 
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en
-```
-
-This creates:
-
-- `assets/script/script.whisper.srt`: raw Whisper subtitle file
-- `assets/script/script.srt`: final script-mapped subtitle file
-
-Create only the raw Whisper subtitle file:
-
-```bash
-npm run generate-subtitles -- --audio assets/audio/audio.MP3 --transcribe-only --transcript-out assets/script/script.whisper.srt --language en
-```
-
-Map an existing Whisper subtitle file without transcribing again:
-
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-in assets/script/script.whisper.srt --language en
-```
-
-Use a faster Python Whisper model on CPU:
-
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --whisper-model tiny.en
-```
-
-Use a custom `ffmpeg` path:
-
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --ffmpeg /path/to/ffmpeg
-```
-
-Use a custom Python Whisper command:
-
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --whisper-command /path/to/whisper
-```
+- `<script-name>.whisper.srt`: raw Whisper subtitle file
+- `<script-name>.srt`: final script-mapped subtitle file
 
 ## Video Segment Generation
 
-After `script.srt` exists, generate one video segment per subtitle cue:
-
-```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments
-```
-
-The command:
+After `script.srt` exists, the video job generates one segment per subtitle cue. The flow:
 
 1. Parses each SRT cue start/end timestamp.
 2. Preserves the subtitle timeline, including gaps between cues, so the final concatenated video can reach the last `script.srt` end time.
@@ -190,33 +148,11 @@ By default, generation fails if there are more SRT cues than source videos:
 Missing source video for subtitle cue N
 ```
 
-To intentionally reuse videos from the beginning, pass `--loop-videos`:
-
-```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --loop-videos
-```
-
-Use a custom tolerance for output duration validation:
-
-```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --duration-tolerance 0.5
-```
-
-Use a custom `ffprobe` path:
-
-```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --ffprobe /path/to/ffprobe
-```
+The web UI exposes the same options through the form and server configuration instead of command-line flags.
 
 ## Final Video Concat
 
-After all segment videos are generated, concatenate them into one final video:
-
-```bash
-npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4
-```
-
-This command:
+After all segment videos are generated, the worker concatenates them into one final video. The flow:
 
 1. Reads all segment videos from the segment folder in deterministic filename order.
 2. Builds an ffmpeg concat list.
@@ -240,17 +176,7 @@ When the web UI video job has access to the original uploaded media file from su
 
 If the video workflow starts only from an uploaded `script.srt` plus source videos, the UI can still create a `final-video-with-audio.mp4` when the user uploads audio in the video section. Without any audio source, the UI only exposes the silent final video download.
 
-Use a custom `ffmpeg` or `ffprobe` path if needed:
-
-```bash
-npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --ffmpeg /path/to/ffmpeg --ffprobe /path/to/ffprobe
-```
-
-Use the vertical export preset:
-
-```bash
-npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4 --aspect-ratio 9:16
-```
+Use `.env` to control custom `ffmpeg`, `ffprobe`, and Whisper paths. Use the web UI selector to choose `16:9` or `9:16`.
 
 ## Script Formats
 

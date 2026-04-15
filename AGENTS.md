@@ -2,14 +2,14 @@
 
 ## Project Structure & Module Organization
 
-This project is a Node.js TypeScript codebase compiled to CommonJS for generating subtitle files from JSON script text and matching audio/video timing.
+This project is a Node.js TypeScript web application compiled to CommonJS for generating subtitle files from JSON script text and matching audio/video timing.
 
-- `src/cli.ts` is the command-line entrypoint for subtitle and video commands.
 - `src/subtitle/` contains script parsing, audio/transcript handling, Whisper mapping, SRT formatting, and subtitle orchestration.
 - `src/video/` contains SRT-driven segment generation, ffmpeg helpers, render presets, and final output orchestration.
+- `src/app/` contains the Express server, routes, controllers, middleware, auth, jobs, and workspace services.
 - `src/logger.ts` creates the Winston logger used for processing progress logs.
 - `tests/*.test.ts` contains the automated Node test suite compiled into `dist/tests/`.
-- `docs/subtitle-generation.md` documents the supported subtitle workflow and commands.
+- `docs/subtitle-generation.md` documents the supported web workflow and deployment-facing configuration.
 - `assets/audio/` and `assets/script/` contain local sample media/script files used for manual verification.
 - `openspec/specs/` contains the synced OpenSpec capability spec. Archived change history is under `openspec/changes/archive/`.
 
@@ -23,10 +23,7 @@ Use the checked-in npm scripts:
 - `npm test`: run the automated test suite.
 - `node --test`: equivalent direct test command.
 - `npm run build`: compile the TypeScript sources into `dist/`.
-- `npm run generate-subtitles -- --help`: show CLI usage.
-- `npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en`: run the full flow, creating a raw Whisper SRT and final JSON-mapped SRT.
-- `npm run generate-subtitles -- --audio assets/audio/audio.MP3 --transcribe-only --transcript-out assets/script/script.whisper.srt --language en`: create only the raw Whisper transcript.
-- `npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-in assets/script/script.whisper.srt --language en`: map an existing Whisper transcript without re-transcribing.
+- `npm run web-ui`: build and start the web UI server.
 
 Tool paths are normally loaded from a repo-root `.env` file:
 
@@ -36,7 +33,7 @@ FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
 WHISPER_COMMAND_PATH=${LOCALAPPDATA}\Python\pythoncore-3.14-64\Scripts\whisper.exe
 ```
 
-Override these with `--ffmpeg`, `FFMPEG_PATH`, `--whisper-command`, or `WHISPER_COMMAND_PATH`. CLI flags override `.env`. Use `--quiet` to disable Winston progress logs.
+Override these with `.env` or process environment. The web app does not expose CLI overrides.
 
 ## Subtitle Generation Flow
 
@@ -73,7 +70,7 @@ Add or update tests for every behavior change, especially around:
 - Whisper transcript parsing and mapping.
 - Exact JSON text preservation.
 - Timestamp validation and SRT formatting.
-- CLI argument handling and error messages.
+- Web route validation and error messages.
 - Tool path defaults and overrides.
 
 Prefer deterministic generated fixtures in tests over large binary files. Manual runs may use `assets/audio/` and `assets/script/`, but avoid adding large new media samples unless the user requests them.
@@ -86,4 +83,4 @@ This directory does not currently contain Git metadata, so no existing commit co
 
 Keep changes scoped to the requested task. Do not introduce unrelated build tooling or refactors. When editing the subtitle workflow, update `docs/subtitle-generation.md` and tests if the user-facing flow or behavior changes.
 
-Long Whisper transcription can take many minutes on CPU. If running the full flow, use a long timeout and check for leftover `node`, `python`, or `whisper` processes if the command is interrupted.
+Long Whisper transcription can take many minutes on CPU. If running end-to-end web flows in development, use a long timeout and check for leftover `node`, `python`, or `whisper` processes if the command is interrupted.

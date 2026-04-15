@@ -7,13 +7,13 @@ import {
   mapJsonItemsToTranscriptFile,
   parseSubtitleJsonFile,
   shouldUseTranscriptAlignment
-} from '../../../subtitle-generation';
+} from '../../../subtitle';
 import {
   concatSegmentFolder,
   generateVideoSegments,
   muxVideoWithAudio,
   renderVideoWithAudioAndSubtitles
-} from '../../../video-segment-generation';
+} from '../../../video';
 import { zipDirectory } from './archive';
 import { buildSubtitleOutputPaths, buildVideoOutputPaths } from './output-names';
 import { createProgressReporter, createSubtitleLogger, createVideoLogger } from './progress';

@@ -25,7 +25,7 @@ import {
   validateCues,
   type SrtCue,
   type SubtitleItem
-} from '../src/subtitle-generation';
+} from '../src/subtitle';
 
 function createPcmWavBuffer(pattern: Array<{ duration: number; amplitude: number }>, sampleRate = 8000): Buffer {
   const samples: number[] = [];

@@ -1,17 +1,15 @@
 # edit-video-tool
 
-Node.js CLI for turning a JSON script plus audio into subtitles, then turning subtitle timing into ordered video segments and a final concatenated video.
+Node.js web application for turning a JSON or text script plus audio into subtitles, then turning subtitle timing into ordered video segments and final rendered videos.
 
 ## What It Does
 
-The tool supports four workflows:
+The tool supports two main browser workflows:
 
-1. Generate `script.srt` from `script.json` and an audio or video file.
-2. Generate one video segment per SRT cue from a folder of source videos.
-3. Concatenate all generated segments into one final video.
-4. Run the same workflows from a browser-based web UI.
+1. Generate `script.whisper.srt` and `script.srt` from a script file and an audio or video file.
+2. Generate video segments and final rendered videos from `script.srt` plus a folder of source videos.
 
-The final subtitle text always comes from JSON. Whisper is used only to derive timing from the media.
+The final subtitle text always comes from the uploaded script file. Whisper is used only to derive timing from the media.
 
 ## Requirements
 
@@ -23,7 +21,6 @@ The final subtitle text always comes from JSON. Whisper is used only to derive t
 Tool path configuration:
 
 - `.env`
-- CLI flags
 - existing process environment
 
 Create a `.env` file in the repo root:
@@ -37,13 +34,11 @@ WEB_UI_PORT=3000
 WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
 ```
 
-Override these with:
+Override these through `.env` or the process environment:
 
-- `--ffmpeg` or `FFMPEG_PATH`
-- `--ffprobe` or `FFPROBE_PATH`
-- `--whisper-command` or `WHISPER_COMMAND_PATH`
-
-CLI flags still win over `.env`.
+- `FFMPEG_PATH`
+- `FFPROBE_PATH`
+- `WHISPER_COMMAND_PATH`
 
 If the tools are already available on `PATH`, prefer command names like `ffmpeg`, `ffprobe`, and `whisper`. That keeps the same config portable across Windows, Linux, and macOS.
 
@@ -98,7 +93,12 @@ npm run build
 
 ## Input Format
 
-JSON input must be an array of objects with non-empty `text` values:
+Script input can be either:
+
+- `.json`: an array of objects with non-empty `text` values
+- `.txt`: one subtitle item per non-empty line
+
+JSON example:
 
 ```json
 [
@@ -110,12 +110,6 @@ JSON input must be an array of objects with non-empty `text` values:
 Current JSON item limit: `100`
 
 ## Commands
-
-Show CLI help:
-
-```bash
-npm run generate-subtitles -- --help
-```
 
 Run tests:
 
@@ -145,16 +139,16 @@ http://127.0.0.1:3000
 
 The web UI flow:
 
-1. Upload one audio or video file and one `script.json` file.
-2. Optional: upload an existing `script.whisper.srt` file to skip audio transcription and map directly to `script.json`.
+1. Upload one audio or video file and one `script.json` or `script.txt` file.
+2. Optional: upload an existing `script.whisper.srt` file to skip audio transcription and map directly to the uploaded script file.
 3. Start subtitle generation and wait for `script.srt` creation.
 4. Download `script.whisper.srt` and `script.srt` after the job completes.
 5. Either keep the current subtitle job active or upload an existing `script.srt` again after a page reload.
-
-Web UI output filenames are generated from the uploaded script name. For example, uploading `my-story.json` produces downloads such as `my-story.whisper.srt`, `my-story.srt`, `my-story-segments.zip`, and `my-story-final-video-16x9-2k.mp4`.
 6. Upload source videos.
 7. Start video generation.
 8. Download the segment zip and final video after completion.
+
+Web UI output filenames are generated from the uploaded script name. For example, uploading `my-story.json` produces downloads such as `my-story.whisper.srt`, `my-story.srt`, `my-story-segments.zip`, and `my-story-final-video-16x9-2k.mp4`.
 
 Web UI notes:
 
@@ -163,105 +157,45 @@ Web UI notes:
 - Uploaded and generated files are stored under `WEB_UI_WORKSPACE_ROOT`.
 - File inputs can be cleared directly in the page before submitting.
 
-### 1. Generate Subtitles
+### Subtitle Generation In The Web UI
 
-Full flow:
-
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en
-```
-
-This does two steps:
+The subtitle workflow does two steps in the background worker:
 
 1. Create a raw Whisper subtitle file.
-2. Map Whisper timing back to the JSON items and write the final SRT.
+2. Map Whisper timing back to the script items and write the final SRT.
 
-Outputs:
+Outputs are stored in the job workspace and exposed as downloads from the page:
 
-- `assets/script/script.whisper.srt`: raw Whisper transcript
-- `assets/script/script.srt`: final JSON-mapped subtitle file
+- `<script-name>.whisper.srt`
+- `<script-name>.srt`
 
-Create only the raw Whisper transcript:
+The final subtitle text must exactly match the uploaded script items. The worker does not paraphrase, split, or rewrite subtitle text.
 
-```bash
-npm run generate-subtitles -- --audio assets/audio/audio.MP3 --transcribe-only --transcript-out assets/script/script.whisper.srt --language en
-```
+### Video Generation In The Web UI
 
-Map an existing Whisper transcript without transcribing again:
+The video workflow:
 
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-in assets/script/script.whisper.srt --language en
-```
+1. Parses each SRT cue start and end time.
+2. Preserves the subtitle timeline, including gaps between cues.
+3. Selects the source video by cue order.
+4. Creates one output segment per cue.
+5. Concatenates the generated segments into a silent final video.
+6. Optionally creates final video + audio and final video + audio + subtitles.
 
-Use a smaller Whisper model on CPU:
+Outputs are stored in the job workspace and exposed as downloads from the page:
 
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --transcript-out assets/script/script.whisper.srt --language en --whisper-model tiny.en
-```
-
-Git Bash example:
-
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt
-```
-
-### 2. Generate Video Segments
-
-Generate one output video per subtitle cue:
-
-```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments
-```
-
-The segment workflow:
-
-1. Parse each SRT cue start and end time.
-2. Preserve the subtitle timeline, including gaps between cues, so the final concatenated video can reach the last `script.srt` end time.
-3. Select the source video by cue order.
-4. Create an output segment that matches the cue duration.
-
-Duration behavior:
-
-- Each generated segment uses the cue's timeline span, not only the visible subtitle text duration. For non-last cues, that means the segment runs until the next cue start so subtitle gaps are preserved.
-- If the target segment duration matches the source video duration within tolerance, copy the source video.
-- If the target segment duration is shorter, cut the source video from `0` to the target duration.
-- If the target segment duration is longer, repeat and concatenate the source video until the target duration is reached.
-
-Example:
-
-- `13s` cue with a `10s` source video becomes `10 + 3`
-- `24s` cue with a `10s` source video becomes `10 + 10 + 4`
-
-By default, the command fails if there are more cues than source videos. To intentionally reuse videos from the beginning:
-
-```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --loop-videos
-```
-
-Set a custom duration validation tolerance:
-
-```bash
-npm run generate-video-segments -- --srt assets/script/script.srt --videos assets/videos --segments-out assets/segments --duration-tolerance 0.5
-```
-
-### 3. Concatenate All Segments
-
-After segments are generated, concatenate them into one final video:
-
-```bash
-npm run generate-video-segments -- --concat-segments assets/segments --final-out assets/final/final.mp4
-```
-
-This reads segment files in deterministic filename order, re-encodes the final concat with `ffmpeg`, removes the audio track from the final output video, and validates that the final duration matches the subtitle timeline represented by the generated segments within tolerance.
+- `<script-name>-segments.zip`
+- `<script-name>-final-video-16x9-2k.mp4` or `<script-name>-final-video-9x16-1080p.mp4`
+- matching `-audio.mp4` and `-audio-subtitles.mp4` variants when audio is available
 
 ## Processing Rules
 
 ### Subtitle generation
 
-- JSON is the source of truth for final subtitle text.
-- Final subtitle text must exactly match the JSON `text` field.
-- The tool does not paraphrase, rewrite, split, or merge JSON text.
-- If Whisper transcript text cannot be matched reliably to JSON, generation fails with a clear error.
+- The uploaded script file is the source of truth for final subtitle text.
+- Final subtitle text must exactly match each script item.
+- The tool does not paraphrase, rewrite, split, or merge script text.
+- If Whisper transcript text cannot be matched reliably to the script sequence, generation fails with a clear error.
 
 ### Video segment generation
 
@@ -271,13 +205,7 @@ This reads segment files in deterministic filename order, re-encodes the final c
 
 ## Logging
 
-The CLI uses Winston for progress logs. Disable them with:
-
-```bash
-npm run generate-subtitles -- --json assets/script/script.json --audio assets/audio/audio.MP3 --out assets/script/script.srt --quiet
-```
-
-The web UI keeps its own in-memory job state and browser-visible progress based on worker progress updates.
+The app uses Winston for processing logs. The web UI keeps its own in-memory job state and browser-visible progress based on worker progress updates.
 
 ## Common Errors
 
@@ -291,7 +219,7 @@ Examples of cases that fail fast:
 - Whisper transcript creation failure
 - transcript text does not match the JSON sequence
 - invalid SRT timestamps
-- more subtitle cues than videos without `--loop-videos`
+- more subtitle cues than videos when video reuse is not enabled in the web flow
 
 ## Development Notes
 
