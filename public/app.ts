@@ -109,11 +109,15 @@
     return renderLabels[aspectRatio] || renderLabels['16:9'];
   }
 
+  function setDownloadLabel(element: HTMLAnchorElement, fallbackLabel: string, fileName?: string | null): void {
+    element.textContent = fileName ? `Download ${fileName}` : fallbackLabel;
+  }
+
   function updateVideoDownloadLabels(aspectRatio: string): void {
     const renderLabel = getRenderLabel(aspectRatio);
-    finalDownloadEl.textContent = `Download final video (${renderLabel})`;
-    finalAudioDownloadEl.textContent = `Download final video + audio (${renderLabel})`;
-    finalSubtitleDownloadEl.textContent = `Download final video + audio + subtitles (${renderLabel})`;
+    setDownloadLabel(finalDownloadEl, `Download final video (${renderLabel})`);
+    setDownloadLabel(finalAudioDownloadEl, `Download final video + audio (${renderLabel})`);
+    setDownloadLabel(finalSubtitleDownloadEl, `Download final video + audio + subtitles (${renderLabel})`);
   }
 
   function clearFileInput(button: HTMLElement): void {
@@ -168,8 +172,10 @@
     if (job.completedPhases.subtitle && job.outputs.hasScriptSrt) {
       refreshVideoAvailability();
       scriptDownloadEl.href = `/download/${job.id}/script`;
+      setDownloadLabel(scriptDownloadEl, 'Download final subtitles', job.outputs.scriptSrtName);
       if (job.outputs.hasTranscriptSrt) {
         transcriptDownloadEl.href = `/download/${job.id}/transcript`;
+        setDownloadLabel(transcriptDownloadEl, 'Download transcript subtitles', job.outputs.transcriptSrtName);
         transcriptDownloadEl.classList.remove('hidden');
       } else {
         transcriptDownloadEl.classList.add('hidden');
@@ -202,17 +208,28 @@
     }
 
     if (job.completedPhases.video && job.outputs.hasSegmentZip && job.outputs.hasFinalVideo) {
-      updateVideoDownloadLabels(job.aspectRatio || getSelectedAspectRatio());
       segmentsDownloadEl.href = `/download/${job.id}/segments`;
+      setDownloadLabel(segmentsDownloadEl, 'Download all segments (.zip)', job.outputs.segmentZipName);
       finalDownloadEl.href = `/download/${job.id}/final-video`;
+      setDownloadLabel(finalDownloadEl, `Download final video (${job.renderLabel || getRenderLabel(job.aspectRatio || getSelectedAspectRatio())})`, job.outputs.finalVideoName);
       if (job.outputs.hasFinalVideoWithAudio) {
         finalAudioDownloadEl.href = `/download/${job.id}/final-video-with-audio`;
+        setDownloadLabel(
+          finalAudioDownloadEl,
+          `Download final video + audio (${job.renderLabel || getRenderLabel(job.aspectRatio || getSelectedAspectRatio())})`,
+          job.outputs.finalVideoWithAudioName
+        );
         finalAudioDownloadEl.classList.remove('hidden');
       } else {
         finalAudioDownloadEl.classList.add('hidden');
       }
       if (job.outputs.hasFinalVideoWithAudioSubtitles) {
         finalSubtitleDownloadEl.href = `/download/${job.id}/final-video-with-audio-subtitles`;
+        setDownloadLabel(
+          finalSubtitleDownloadEl,
+          `Download final video + audio + subtitles (${job.renderLabel || getRenderLabel(job.aspectRatio || getSelectedAspectRatio())})`,
+          job.outputs.finalVideoWithAudioSubtitlesName
+        );
         finalSubtitleDownloadEl.classList.remove('hidden');
       } else {
         finalSubtitleDownloadEl.classList.add('hidden');

@@ -7,6 +7,7 @@ import { SUPPORTED_MEDIA_EXTENSIONS, SUPPORTED_WHISPER_LANGUAGES } from '../conf
 import { moveFile, unlinkIfPresent } from '../http/files';
 import { serializeJob } from '../http/serializers';
 import { createOwnedJob } from './job-helpers';
+import { buildStoredUploadName } from '../services/jobs/output-names';
 
 function cleanupFiles(...files: Array<string | undefined | null>): void {
   files.forEach((filePath) => unlinkIfPresent(filePath));
@@ -56,11 +57,11 @@ export function createSubtitleJobsController(
 
       const job = createOwnedJob(context.jobStore, context.workspaceRoot, request);
       const audioPath = audioFile
-        ? moveFile(audioFile.path, path.join(job.workspace!.inputs, `audio${path.extname(audioFile.originalname).toLowerCase()}`))
+        ? moveFile(audioFile.path, path.join(job.workspace!.inputs, buildStoredUploadName(audioFile.originalname, 'audio')))
         : null;
-      const jsonPath = moveFile(scriptFile.path, path.join(job.workspace!.inputs, `script${scriptExtension}`));
+      const jsonPath = moveFile(scriptFile.path, path.join(job.workspace!.inputs, buildStoredUploadName(scriptFile.originalname, 'script')));
       const transcriptPath = transcriptFile
-        ? moveFile(transcriptFile.path, path.join(job.workspace!.inputs, 'script.whisper.srt'))
+        ? moveFile(transcriptFile.path, path.join(job.workspace!.inputs, buildStoredUploadName(transcriptFile.originalname, 'script-whisper')))
         : null;
 
       context.jobStore.markRunning(job.id, {

@@ -150,6 +150,8 @@ The web UI flow:
 3. Start subtitle generation and wait for `script.srt` creation.
 4. Download `script.whisper.srt` and `script.srt` after the job completes.
 5. Either keep the current subtitle job active or upload an existing `script.srt` again after a page reload.
+
+Web UI output filenames are generated from the uploaded script name. For example, uploading `my-story.json` produces downloads such as `my-story.whisper.srt`, `my-story.srt`, `my-story-segments.zip`, and `my-story-final-video-16x9-2k.mp4`.
 6. Upload source videos.
 7. Start video generation.
 8. Download the segment zip and final video after completion.

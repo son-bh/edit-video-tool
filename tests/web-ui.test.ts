@@ -10,6 +10,7 @@ import type { Server } from 'node:http';
 import { createApp } from '../src/app/app';
 import { slugifyUsername } from '../src/app/services/auth';
 import { createJobStore } from '../src/app/services/jobs/job-store';
+import { buildSubtitleOutputPaths, buildVideoOutputPaths } from '../src/app/services/jobs/output-names';
 import { createJobWorkspace } from '../src/app/services/workspace';
 
 async function withTempDir(callback: (dir: string) => Promise<void>): Promise<void> {
@@ -38,24 +39,24 @@ async function withServer(app: ReturnType<typeof createApp>, callback: (baseUrl:
 
 function createSubtitleForm(language = 'en'): FormData {
   const form = new FormData();
-  form.append('audio', new Blob(['audio bytes']), 'sample.mp3');
-  form.append('scriptJson', new Blob([JSON.stringify([{ text: 'Hello world' }])], { type: 'application/json' }), 'script.json');
+  form.append('audio', new Blob(['audio bytes']), 'voice-track.mp3');
+  form.append('scriptJson', new Blob([JSON.stringify([{ text: 'Hello world' }])], { type: 'application/json' }), 'my-story.json');
   form.append('language', language);
   return form;
 }
 
 function createSubtitleTxtForm(language = 'en'): FormData {
   const form = new FormData();
-  form.append('audio', new Blob(['audio bytes']), 'sample.mp3');
-  form.append('scriptJson', new Blob(['Hello world\nSecond line\n'], { type: 'text/plain' }), 'script.txt');
+  form.append('audio', new Blob(['audio bytes']), 'voice-track.mp3');
+  form.append('scriptJson', new Blob(['Hello world\nSecond line\n'], { type: 'text/plain' }), 'my-story.txt');
   form.append('language', language);
   return form;
 }
 
 function createTranscriptOnlyForm(): FormData {
   const form = new FormData();
-  form.append('scriptJson', new Blob([JSON.stringify([{ text: 'Hello world' }])], { type: 'application/json' }), 'script.json');
-  form.append('transcriptSrt', new Blob(['1\n00:00:00,000 --> 00:00:01,000\nHello world\n']), 'script.whisper.srt');
+  form.append('scriptJson', new Blob([JSON.stringify([{ text: 'Hello world' }])], { type: 'application/json' }), 'my-story.json');
+  form.append('transcriptSrt', new Blob(['1\n00:00:00,000 --> 00:00:01,000\nHello world\n']), 'my-story.whisper.srt');
   return form;
 }
 
@@ -69,7 +70,7 @@ function createVideoForm(): FormData {
 
 function createStandaloneVideoForm(aspectRatio = '16:9'): FormData {
   const form = createVideoForm();
-  form.append('scriptSrt', new Blob(['1\n00:00:00,000 --> 00:00:01,000\nHello world\n']), 'script.srt');
+  form.append('scriptSrt', new Blob(['1\n00:00:00,000 --> 00:00:01,000\nHello world\n']), 'my-story.srt');
   form.set('aspectRatio', aspectRatio);
   return form;
 }
@@ -327,11 +328,12 @@ test('subtitle route starts a job, exposes status, and allows script download', 
         assert.equal(payload.language, 'en');
         assert.equal(job.ownerUsername, 'Logan');
         assert.match(payload.workspace.root, new RegExp(`\\\\${slugifyUsername('Logan')}\\\\jobs\\\\`));
-        fs.writeFileSync(path.join(payload.workspace.outputs, 'script.whisper.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
-        fs.writeFileSync(path.join(payload.workspace.outputs, 'script.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
+        const { transcriptSrtPath, scriptSrtPath } = buildSubtitleOutputPaths(payload.workspace.outputs, payload.jsonPath);
+        fs.writeFileSync(transcriptSrtPath, '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
+        fs.writeFileSync(scriptSrtPath, '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
         jobStore.markCompleted(job.id, 'subtitle', {
-          transcriptSrt: path.join(payload.workspace.outputs, 'script.whisper.srt'),
-          scriptSrt: path.join(payload.workspace.outputs, 'script.srt')
+          transcriptSrt: transcriptSrtPath,
+          scriptSrt: scriptSrtPath
         }, {
           phase: 'subtitle',
           message: 'Subtitle generation complete'
@@ -370,12 +372,14 @@ test('subtitle route starts a job, exposes status, and allows script download', 
     });
     const downloadBody = await downloadResponse.text();
     assert.equal(downloadResponse.status, 200);
+    assert.match(downloadResponse.headers.get('content-disposition') || '', /my-story\.srt/i);
     assert.match(downloadBody, /Hello world/);
 
     const transcriptResponse = await fetch(baseUrl + `/download/${data.job.id}/transcript`, {
       headers: withAuth(cookie)
     });
     assert.equal(transcriptResponse.status, 200);
+    assert.match(transcriptResponse.headers.get('content-disposition') || '', /my-story\.whisper\.srt/i);
     assert.match(await transcriptResponse.text(), /Hello world/);
   });
 }));
@@ -416,12 +420,13 @@ test('subtitle route accepts uploaded .txt script files', async () => withTempDi
     jobRunner: {
       startSubtitleJob(job: any, payload: any) {
         assert.equal(payload.language, 'en');
-        assert.match(payload.jsonPath, /script\.txt$/);
-        fs.writeFileSync(path.join(payload.workspace.outputs, 'script.whisper.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
-        fs.writeFileSync(path.join(payload.workspace.outputs, 'script.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
+        assert.match(payload.jsonPath, /my-story\.txt$/);
+        const { transcriptSrtPath, scriptSrtPath } = buildSubtitleOutputPaths(payload.workspace.outputs, payload.jsonPath);
+        fs.writeFileSync(transcriptSrtPath, '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
+        fs.writeFileSync(scriptSrtPath, '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
         jobStore.markCompleted(job.id, 'subtitle', {
-          transcriptSrt: path.join(payload.workspace.outputs, 'script.whisper.srt'),
-          scriptSrt: path.join(payload.workspace.outputs, 'script.srt')
+          transcriptSrt: transcriptSrtPath,
+          scriptSrt: scriptSrtPath
         }, {
           phase: 'subtitle',
           message: 'Subtitle generation complete'
@@ -488,11 +493,12 @@ test('subtitle route accepts uploaded transcript and skips audio upload', async 
     jobRunner: {
       startSubtitleJob(job: any, payload: any) {
         assert.equal(Boolean(payload.audioPath), false);
-        assert.match(payload.transcriptPath, /script\.whisper\.srt$/);
-        fs.writeFileSync(path.join(payload.workspace.outputs, 'script.srt'), '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
+        assert.match(payload.transcriptPath, /my-story\.whisper\.srt$/);
+        const { scriptSrtPath } = buildSubtitleOutputPaths(payload.workspace.outputs, payload.jsonPath);
+        fs.writeFileSync(scriptSrtPath, '1\n00:00:00,000 --> 00:00:01,000\nHello world\n');
         jobStore.markCompleted(job.id, 'subtitle', {
           transcriptSrt: payload.transcriptPath,
-          scriptSrt: path.join(payload.workspace.outputs, 'script.srt')
+          scriptSrt: scriptSrtPath
         }, {
           phase: 'subtitle',
           message: 'Subtitle generation complete'
@@ -573,7 +579,7 @@ test('video route starts a job and exposes segment and final video downloads', a
     folderName: workspace.folderName,
     workspace,
     outputs: {
-      scriptSrt: path.join(workspace.outputs, 'script.srt')
+      scriptSrt: path.join(workspace.outputs, 'my-story.srt')
     }
   });
 
@@ -594,8 +600,9 @@ test('video route starts a job and exposes segment and final video downloads', a
       },
       startVideoJob(currentJob: any, payload: any) {
         assert.equal(payload.aspectRatio, '16:9');
-        const segmentZip = path.join(payload.workspace.outputs, 'segments.zip');
-        const finalVideo = path.join(payload.workspace.outputs, 'final-video.mp4');
+        const { segmentZipPath, finalVideoPath } = buildVideoOutputPaths(payload.workspace.outputs, payload.scriptSrtPath, payload.aspectRatio);
+        const segmentZip = segmentZipPath;
+        const finalVideo = finalVideoPath;
         fs.writeFileSync(segmentZip, 'zip bytes');
         fs.writeFileSync(finalVideo, 'video bytes');
         jobStore.markCompleted(currentJob.id, 'video', {
@@ -627,12 +634,14 @@ test('video route starts a job and exposes segment and final video downloads', a
       headers: withAuth(cookie)
     });
     assert.equal(zipResponse.status, 200);
+    assert.match(zipResponse.headers.get('content-disposition') || '', /my-story-segments\.zip/i);
     assert.equal(await zipResponse.text(), 'zip bytes');
 
     const finalResponse = await fetch(baseUrl + `/download/${job.id}/final-video`, {
       headers: withAuth(cookie)
     });
     assert.equal(finalResponse.status, 200);
+    assert.match(finalResponse.headers.get('content-disposition') || '', /my-story-final-video-16x9-2k\.mp4/i);
     assert.equal(await finalResponse.text(), 'video bytes');
   });
 }));
@@ -648,8 +657,9 @@ test('video route accepts 9:16 aspect ratio for a standalone job', async () => w
       },
       startVideoJob(currentJob: any, payload: any) {
         assert.equal(payload.aspectRatio, '9:16');
-        const segmentZip = path.join(payload.workspace.outputs, 'segments.zip');
-        const finalVideo = path.join(payload.workspace.outputs, 'final-video.mp4');
+        const { segmentZipPath, finalVideoPath } = buildVideoOutputPaths(payload.workspace.outputs, payload.scriptSrtPath, payload.aspectRatio);
+        const segmentZip = segmentZipPath;
+        const finalVideo = finalVideoPath;
         fs.writeFileSync(segmentZip, 'zip bytes');
         fs.writeFileSync(finalVideo, 'video bytes');
         jobStore.markCompleted(currentJob.id, 'video', {
@@ -721,9 +731,10 @@ test('standalone video route accepts uploaded script.srt and starts a fresh vide
         return fakeChildProcess();
       },
       startVideoJob(currentJob: any, payload: any) {
-        assert.match(payload.scriptSrtPath, /script\.srt$/);
-        const segmentZip = path.join(payload.workspace.outputs, 'segments.zip');
-        const finalVideo = path.join(payload.workspace.outputs, 'final-video.mp4');
+        assert.match(payload.scriptSrtPath, /my-story\.srt$/);
+        const { segmentZipPath, finalVideoPath } = buildVideoOutputPaths(payload.workspace.outputs, payload.scriptSrtPath, payload.aspectRatio);
+        const segmentZip = segmentZipPath;
+        const finalVideo = finalVideoPath;
         fs.writeFileSync(segmentZip, 'zip bytes');
         fs.writeFileSync(finalVideo, 'video bytes');
         jobStore.markCompleted(currentJob.id, 'video', {
@@ -757,6 +768,7 @@ test('standalone video route accepts uploaded script.srt and starts a fresh vide
       headers: withAuth(cookie)
     });
     assert.equal(finalResponse.status, 200);
+    assert.match(finalResponse.headers.get('content-disposition') || '', /my-story-final-video-16x9-2k\.mp4/i);
     assert.equal(await finalResponse.text(), 'video bytes');
   });
 }));

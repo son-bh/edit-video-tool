@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { DEFAULT_ASPECT_RATIO, resolveVideoRenderPreset } from '../../video-segment-generation';
 import type { JobRecord } from '../types';
 
@@ -27,7 +29,13 @@ export function serializeJob(job: JobRecord | null): Record<string, unknown> | n
       hasSegmentZip: Boolean(job.outputs.segmentZip),
       hasFinalVideo: Boolean(job.outputs.finalVideo),
       hasFinalVideoWithAudio: Boolean(job.outputs.finalVideoWithAudio),
-      hasFinalVideoWithAudioSubtitles: Boolean(job.outputs.finalVideoWithAudioSubtitles)
+      hasFinalVideoWithAudioSubtitles: Boolean(job.outputs.finalVideoWithAudioSubtitles),
+      transcriptSrtName: job.outputs.transcriptSrt ? path.basename(job.outputs.transcriptSrt) : null,
+      scriptSrtName: job.outputs.scriptSrt ? path.basename(job.outputs.scriptSrt) : null,
+      segmentZipName: job.outputs.segmentZip ? path.basename(job.outputs.segmentZip) : null,
+      finalVideoName: job.outputs.finalVideo ? path.basename(job.outputs.finalVideo) : null,
+      finalVideoWithAudioName: job.outputs.finalVideoWithAudio ? path.basename(job.outputs.finalVideoWithAudio) : null,
+      finalVideoWithAudioSubtitlesName: job.outputs.finalVideoWithAudioSubtitles ? path.basename(job.outputs.finalVideoWithAudioSubtitles) : null
     }
   };
 }

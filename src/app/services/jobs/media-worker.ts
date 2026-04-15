@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
 import { formatSrt } from '../../../subtitle/srt';
 import {
@@ -16,6 +15,7 @@ import {
   renderVideoWithAudioAndSubtitles
 } from '../../../video-segment-generation';
 import { zipDirectory } from './archive';
+import { buildSubtitleOutputPaths, buildVideoOutputPaths } from './output-names';
 import { createProgressReporter, createSubtitleLogger, createVideoLogger } from './progress';
 
 function send(message: unknown): void {
@@ -25,8 +25,7 @@ function send(message: unknown): void {
 }
 
 async function runSubtitleJob(payload: any, progress: ReturnType<typeof createProgressReporter>): Promise<void> {
-  const transcriptPath = path.join(payload.workspace.outputs, 'script.whisper.srt');
-  const scriptSrtPath = path.join(payload.workspace.outputs, 'script.srt');
+  const { transcriptSrtPath: transcriptPath, scriptSrtPath } = buildSubtitleOutputPaths(payload.workspace.outputs, payload.jsonPath);
   const logger = createSubtitleLogger(progress);
   const alignment = {
     ffmpegPath: payload.ffmpegPath,
@@ -120,10 +119,11 @@ async function runSubtitleJob(payload: any, progress: ReturnType<typeof createPr
 }
 
 async function runVideoJob(payload: any, progress: ReturnType<typeof createProgressReporter>): Promise<void> {
-  const segmentZipPath = path.join(payload.workspace.outputs, 'segments.zip');
-  const finalVideoPath = path.join(payload.workspace.outputs, 'final-video.mp4');
-  const finalVideoWithAudioPath = path.join(payload.workspace.outputs, 'final-video-with-audio.mp4');
-  const finalVideoWithAudioSubtitlesPath = path.join(payload.workspace.outputs, 'final-video-with-audio-subtitles.mp4');
+  const { segmentZipPath, finalVideoPath, finalVideoWithAudioPath, finalVideoWithAudioSubtitlesPath } = buildVideoOutputPaths(
+    payload.workspace.outputs,
+    payload.scriptSrtPath,
+    payload.aspectRatio
+  );
   const logger = createVideoLogger(progress);
 
   progress.update({

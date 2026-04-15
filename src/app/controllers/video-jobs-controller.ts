@@ -8,6 +8,7 @@ import { SUPPORTED_MEDIA_EXTENSIONS } from '../config/media';
 import { moveFile, unlinkIfPresent } from '../http/files';
 import { serializeJob } from '../http/serializers';
 import { createOwnedJob, getOwnedJob, moveVideoFiles } from './job-helpers';
+import { buildStoredUploadName } from '../services/jobs/output-names';
 
 function cleanupUploadFiles(audioPath: string | undefined | null, scriptSrtPath: string | undefined | null, files: Express.Multer.File[]): void {
   unlinkIfPresent(audioPath);
@@ -68,7 +69,7 @@ export function createVideoJobsController(
       }
 
       const audioPath = audioFile
-        ? moveFile(audioFile.path, path.join(job.workspace!.inputs, `audio-for-video${path.extname(audioFile.originalname).toLowerCase()}`))
+        ? moveFile(audioFile.path, path.join(job.workspace!.inputs, buildStoredUploadName(audioFile.originalname, 'audio-for-video')))
         : job.files.audioPath;
       moveVideoFiles(files, job.workspace!.videos);
 
@@ -151,9 +152,9 @@ export function createVideoJobsController(
 
       const job = createOwnedJob(context.jobStore, context.workspaceRoot, request);
       const audioPath = audioFile
-        ? moveFile(audioFile.path, path.join(job.workspace!.inputs, `audio-for-video${path.extname(audioFile.originalname).toLowerCase()}`))
+        ? moveFile(audioFile.path, path.join(job.workspace!.inputs, buildStoredUploadName(audioFile.originalname, 'audio-for-video')))
         : null;
-      const scriptSrtPath = moveFile(scriptSrtFile.path, path.join(job.workspace!.inputs, 'script.srt'));
+      const scriptSrtPath = moveFile(scriptSrtFile.path, path.join(job.workspace!.inputs, buildStoredUploadName(scriptSrtFile.originalname, 'script')));
       moveVideoFiles(files, job.workspace!.videos);
 
       context.jobStore.markCompleted(job.id, 'subtitle', {

@@ -110,6 +110,7 @@ The web UI lets the user:
     - `final-video-with-audio-subtitles.mp4` as a final with burned subtitles in the selected preset
 
 The page also provides clear buttons for the selected upload files before submission.
+Web UI download filenames are generated from the uploaded script basename, so `my-story.json` produces files such as `my-story.whisper.srt`, `my-story.srt`, `my-story-segments.zip`, and `my-story-final-video-16x9-2k.mp4`.
 
 Uploaded and generated files are stored under username-scoped workspace roots:
 
