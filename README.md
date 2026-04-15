@@ -32,6 +32,7 @@ WHISPER_COMMAND_PATH=whisper
 WEB_UI_HOST=127.0.0.1
 WEB_UI_PORT=3000
 WEB_UI_WORKSPACE_ROOT=.tmp-web-ui
+PUBLIC_BASE_URL=https://your-domain.example
 ```
 
 Override these through `.env` or the process environment:
@@ -39,6 +40,7 @@ Override these through `.env` or the process environment:
 - `FFMPEG_PATH`
 - `FFPROBE_PATH`
 - `WHISPER_COMMAND_PATH`
+- `PUBLIC_BASE_URL`
 
 If the tools are already available on `PATH`, prefer command names like `ffmpeg`, `ffprobe`, and `whisper`. That keeps the same config portable across Windows, Linux, and macOS.
 
@@ -149,6 +151,27 @@ The web UI flow:
 8. Download the segment zip and final video after completion.
 
 Web UI output filenames are generated from the uploaded script name. For example, uploading `my-story.json` produces downloads such as `my-story.whisper.srt`, `my-story.srt`, `my-story-segments.zip`, and `my-story-final-video-16x9-2k.mp4`.
+
+If `PUBLIC_BASE_URL` and Google Sheets sync are configured, each completed job also updates one row in the target sheet with public URLs for:
+
+- final script SRT
+- final silent video
+- final video + audio
+- final video + audio + subtitles
+
+The public links use:
+
+```text
+https://your-domain.example/media/<username>/<job-folder>/<file-name>
+```
+
+Only top-level generated files under each job's `outputs/` folder are exposed through that route.
+
+Google Sheets configuration now lives in constants inside [google-sheets.ts](C:\Users\sonbh\Documents\workspace\tool\edit-video-tool\src\app\services\publication\google-sheets.ts), including:
+
+- `USER_GOOGLE_SHEETS`: maps each `ownerKey` to that user's spreadsheet ID
+- `DEFAULT_GOOGLE_SHEETS_SHEET_NAME`: fixed tab name, currently `Video`
+- `DEFAULT_GOOGLE_SERVICE_ACCOUNT_FILE`: default credential path, currently `config/service_account.json`
 
 Web UI notes:
 

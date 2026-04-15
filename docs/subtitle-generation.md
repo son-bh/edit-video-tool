@@ -29,6 +29,7 @@ WEB_UI_ALLOWED_USERNAMES=Logan,Sang,Nhi,An,Nguyen,Tai,Hien,Phuong,Ha,Trang,Den,S
 WEB_UI_SHARED_PASSWORD=Waebox2026@
 WEB_UI_SESSION_SECRET=change-me-before-public-deploy
 WEB_UI_SESSION_MAX_AGE_MS=2592000000
+PUBLIC_BASE_URL=https://your-domain.example
 ```
 
 Override tool paths with `FFMPEG_PATH`, `FFPROBE_PATH`, and `WHISPER_COMMAND_PATH`.
@@ -119,6 +120,29 @@ Uploaded and generated files are stored under username-scoped workspace roots:
 ```
 
 Each authenticated user can only access jobs created under that user's workspace.
+
+If Google Sheets sync is enabled in `src/app/services/publication/google-sheets.ts`, the server also writes one row per completed job to the configured Google Sheet with these columns:
+
+- `ID`
+- `Created At`
+- `Script Path`
+- `Video Path`
+- `Video Audio Path`
+- `Video Subtitle Path`
+
+Those cells store public URLs built from `PUBLIC_BASE_URL` using this route shape:
+
+```text
+/media/<username>/<job-folder>/<file-name>
+```
+
+Only generated files in each job's `outputs/` directory are exposed publicly. Inputs and uploaded source videos stay private.
+
+Google Sheets defaults are now set in `src/app/services/publication/google-sheets.ts`.
+
+- `USER_GOOGLE_SHEETS` maps each `ownerKey` to that user's spreadsheet ID
+- `DEFAULT_GOOGLE_SHEETS_SHEET_NAME` is the fixed tab name, currently `Video`
+- `DEFAULT_GOOGLE_SERVICE_ACCOUNT_FILE` is the default credential path, currently `config/service_account.json`
 
 When the subtitle job runs successfully, it creates:
 
